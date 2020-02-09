@@ -1,0 +1,1 @@
+/usr/bin/g++-5  -fPIC   -O3 -DNDEBUG   -shared -Wl,-soname,liblio-map-builder.so -o devel/lib/liblio-map-builder.so CMakeFiles/lio-map-builder.dir/src/map_builder/MapBuilder.cc.o 
