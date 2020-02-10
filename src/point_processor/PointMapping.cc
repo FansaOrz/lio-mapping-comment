@@ -108,10 +108,11 @@ namespace lio {
 	} // SetupRos
 	
 	void PointMapping::CompactDataHandler(const sensor_msgs::PointCloud2ConstPtr &compact_data_msg) {
-		
+		// 计时
 		TicToc tic_toc_decoder;
 		
 		PointCloud compact_points;
+		// 转换成pcl类型
 		pcl::fromROSMsg(*compact_data_msg, compact_points);
 		
 		size_t compact_point_size = compact_points.size();
@@ -122,6 +123,7 @@ namespace lio {
 		}
 		
 		PointT compact_point;
+		// 第三个point存的是三个size
 		compact_point = compact_points[2];
 		int corner_size = int(compact_point.x);
 		int surf_size = int(compact_point.y);
@@ -132,7 +134,7 @@ namespace lio {
 			           << compact_point_size;
 			return;
 		}
-		
+		// 获取前两个point的内容
 		{
 			compact_point = compact_points[0];
 			transform_sum_.pos.x() = compact_point.x;
@@ -144,7 +146,7 @@ namespace lio {
 			transform_sum_.rot.z() = compact_point.z;
 			transform_sum_.rot.w() = compact_point.intensity;
 		}
-		
+		// 取出compact_data中每个point并存储起来
 		{
 			laser_cloud_corner_last_->clear();
 			laser_cloud_surf_last_->clear();

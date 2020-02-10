@@ -273,13 +273,13 @@ namespace lio {
 	}
 	
 	void PointOdometry::Process() {
+		// 检查是否有新的数据
 		if (!HasNewData()) {
-			// DLOG(INFO) << "no data received or dropped";
 			return;
 		}
-		
+		// 重置标志位
 		Reset();
-		
+		// 第一次进入，先初始化
 		if (!system_inited_) {
 			corner_points_less_sharp_.swap(last_corner_cloud_);
 			surf_points_less_flat_.swap(last_surf_cloud_);
@@ -297,8 +297,6 @@ namespace lio {
 		
 		size_t last_corner_size = last_corner_cloud_->points.size();
 		size_t last_surf_size = last_surf_cloud_->points.size();
-		
-		tic_toc_.Tic();
 		
 		if (enable_odom_) {
 			// NOTE: fixed number here
@@ -319,7 +317,7 @@ namespace lio {
 					PointT point_sel, tripod1, tripod2, tripod3;
 					laser_cloud_ori_->clear();
 					coeff_sel_->clear();
-					
+					// 边缘点
 					for (int i = 0; i < num_curr_corner_points_sharp; ++i) {
 						TransformToStart(corner_points_sharp_->points[i], point_sel);
 						if (iter_count % 5 == 0) {
@@ -418,7 +416,7 @@ namespace lio {
 						}
 						
 					} // NOTE: for corner points
-					
+					// 平面点
 					for (int i = 0; i < num_curr_surf_points_flat; ++i) {
 						TransformToStart(surf_points_flat_->points[i], point_sel);
 						
@@ -615,8 +613,8 @@ namespace lio {
 //      SO3 es_SO3 = SO3::exp(r_so3);
 //      transform_es_.rot = es_SO3.unit_quaternion();
 					
-					transform_es_.rot =
-							transform_es_.rot * DeltaQ(Eigen::Vector3f(mat_X(0, 0), mat_X(1, 0), mat_X(2, 0)));
+					transform_es_.rot = transform_es_.rot * DeltaQ(Eigen::Vector3f(mat_X(0, 0),
+							mat_X(1, 0), mat_X(2, 0)));
 					
 					if (!isfinite(transform_es_.pos.x())) transform_es_.pos.x() = 0.0;
 					if (!isfinite(transform_es_.pos.y())) transform_es_.pos.y() = 0.0;
@@ -657,8 +655,6 @@ namespace lio {
 			kdtree_corner_last_->setInputCloud(last_corner_cloud_);
 			kdtree_surf_last_->setInputCloud(last_surf_cloud_);
 		}
-		
-		ROS_DEBUG_STREAM("odom: " << tic_toc_.Toc() << " ms");
 		/// process ends
 		
 		PublishResults();

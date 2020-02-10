@@ -131,7 +131,7 @@ void Run() {
 		tmp_double = fs_settings["msg_time_delay"];
 		mm_config.msg_time_delay = tmp_double;
 	}
-
+	// 构造函数 赋值
 	Estimator estimator(estimator_config);
 	
 	estimator.SetupRos(*nh_ptr);
