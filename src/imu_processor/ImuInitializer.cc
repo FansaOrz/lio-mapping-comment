@@ -158,11 +158,8 @@ namespace lio {
 	}
 	
 	void RefineGravityAccBias(CircularBuffer<PairTimeLaserTransform> &all_laser_transforms,
-	                          CircularBuffer<Vector3d> &Vs,
-	                          CircularBuffer<Vector3d> &Bgs,
-	                          Vector3d &g_approx,
-	                          Transform &transform_lb,
-	                          Matrix3d &R_WI) {
+	                          CircularBuffer<Vector3d> &Vs, CircularBuffer<Vector3d> &Bgs,
+	                          Vector3d &g_approx, Transform &transform_lb, Matrix3d &R_WI) {
 		
 		typedef Sophus::SO3d SO3;
 		
@@ -317,17 +314,15 @@ namespace lio {
 	}
 	
 	bool ImuInitializer::Initialization(CircularBuffer<PairTimeLaserTransform> &all_laser_transforms,
-	                                    CircularBuffer<Vector3d> &Vs,
-	                                    CircularBuffer<Vector3d> &Bas,
-	                                    CircularBuffer<Vector3d> &Bgs,
-	                                    Vector3d &g,
-	                                    Transform &transform_lb,
-	                                    Matrix3d &R_WI) {
-		
+	                                    CircularBuffer<Vector3d> &Vs, CircularBuffer<Vector3d> &Bas,
+	                                    CircularBuffer<Vector3d> &Bgs, Vector3d &g, Transform &transform_lb, Matrix3d &R_WI) {
+		// 估计陀螺仪的Bias
 		EstimateGyroBias(all_laser_transforms, Bgs);
+		// 利用all_laser_transforms和transform_lb获取g
 		if (!ApproximateGravity(all_laser_transforms, g, transform_lb)) {
 			return false;
 		};
+		// 利用刚才获取的g再一次校准
 		RefineGravityAccBias(all_laser_transforms, Vs, Bgs, g, transform_lb, R_WI);
 		return true;
 	}

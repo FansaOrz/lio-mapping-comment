@@ -133,6 +133,7 @@ namespace lio {
 		 *
 		 * @return the first element
 		 */
+		 // first是最旧的
 		const T &first() const {
 			return buffer_[start_idx_];
 		}
@@ -145,6 +146,7 @@ namespace lio {
 		 *
 		 * @return the last element
 		 */
+		 // last是最新的
 		const T &last() const {
 			size_t idx = size_ == 0 ? 0 : (start_idx_ + size_ - 1) % capacity_;
 			return buffer_[idx];

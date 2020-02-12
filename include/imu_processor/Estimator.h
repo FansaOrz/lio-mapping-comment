@@ -204,6 +204,7 @@ namespace lio {
 		
 		//  map<double, LaserFrame> all_laser_frames;
 		// CircularBuffer是自己做的一个循环移位寄存器存满了就再一次从头开始
+		// 这里面存储的是lidar的mapping估计的R和t以及IMU预积分算出来的R和t
 		CircularBuffer<PairTimeLaserTransform> all_laser_transforms_{estimator_config_.window_size + 1};
 		// 滑窗大小，用于存储imu预积分的P数值
 		CircularBuffer<Vector3d> Ps_{estimator_config_.window_size + 1};
