@@ -358,7 +358,6 @@ namespace lio {
 		  
 		  pub_predict_odom_.publish(predict_odom_);
 	  }
-	  
   }
   
   // TODO: this function can be simplified
@@ -470,6 +469,7 @@ namespace lio {
 						  if (extrinsic_stage_ != 2 && (header.stamp.toSec() - initial_time_) > 0.1) {
 							  DLOG(INFO) << "EXTRINSIC STAGE: " << extrinsic_stage_;
 							  // TODO 这个函数是在干什么？？
+							  // 更新了重力项，其他的没仔细看，没看明白
 							  init_result = RunInitialization();
 							  initial_time_ = header.stamp.toSec();
 						  }
@@ -480,13 +480,14 @@ namespace lio {
 					  if (init_result) {
 						  // 下次ProcessLaserOdom这个函数，swich case就变化了
 						  stage_flag_ = INITED;
+						  // 设置了imu_inited_的值，用于
 						  SetInitFlag(true);
 						  
 						  Q_WI_ = R_WI_;
 						  // wi_trans_.setRotation(tf::Quaternion{Q_WI_.x(), Q_WI_.y(), Q_WI_.z(), Q_WI_.w()});
 						  
 						  ROS_WARN_STREAM(">>>>>>> IMU initialized <<<<<<<");
-						  
+						  // 和去畸变有关？
 						  if (estimator_config_.enable_deskew || estimator_config_.cutoff_deskew) {
 							  ros::ServiceClient client = nh_.serviceClient<std_srvs::SetBool>("/enable_odom");
 							  std_srvs::SetBool srv;
@@ -497,10 +498,10 @@ namespace lio {
 								  LOG(FATAL) << "FAILED TO CALL TURNING OFF THE ORIGINAL LASER ODOM";
 							  }
 						  }
-						  
+						  // Rs_和Ps_都是window_size + 1大小
 						  for (size_t i = 0; i < estimator_config_.window_size + 1; ++i) {
 							  Twist<double> transform_lb = transform_lb_.cast<double>();
-							  
+							  // 利用上面initialization获得的imu到lidar的变换和Rs_[] Ps_[]获得当前lidar的T
 							  Quaterniond Rs_li(Rs_[i] * transform_lb.rot.inverse());
 							  Eigen::Vector3d Ps_li = Ps_[i] - Rs_li * transform_lb.pos;
 							  
@@ -510,6 +511,7 @@ namespace lio {
 							  DLOG(INFO) << "TEST all_laser_transforms " << i << ": "
 							             << all_laser_transforms_[i].second.transform;
 						  }
+						  // TODO 这个函数干什么的？
 						  SolveOptimization();
 						  // 这个时候已经建立好了localmap， init_local_map_变成true
 						  SlideWindow();
@@ -530,10 +532,15 @@ namespace lio {
 //
 //								DLOG(INFO) << "TEST trans_li " << i << ": " << trans_li;
 //							}
-					  } else {
+
+					  }
+					  // 如果运行RunInitialization()没成功
+					  else {
 						  SlideWindow();
 					  }
-				  } else {
+				  }
+				  // 如果cir_buf_count_ ！= estimator_config_.window_size
+				  else {
 					  // 如果Ps Rs等存储的数字还不够一个窗口大小，就累积前几个，直到达到windows数量
 					  DLOG(INFO) << "Ps size: " << Ps_.size();
 					  DLOG(INFO) << "pre size: " << pre_integrations_.size();
@@ -555,14 +562,16 @@ namespace lio {
 				  if (opt_point_coeff_map_.size() == estimator_config_.opt_window_size + 1) {
 					  // 如果需要消除运动畸变
 					  if (estimator_config_.enable_deskew || estimator_config_.cutoff_deskew) {
+					  	// 计时
 						  TicToc t_deskew;
 						  t_deskew.Tic();
-						  // TODO: the coefficients to be parameterized
+						  // TODO: the coefficients (系数) to be parameterized
 						  DLOG(INFO) << ">>>>>>> de-skew points <<<<<<<";
 						  LOG_ASSERT(imu_stampedtransforms.size() > 0) << "no imu data";
 						  // imu最新的时间戳
 						  float time_end = imu_stampedtransforms.last().time;
 						  Transform transform_end = imu_stampedtransforms.last().transform;
+						  // 临时设置一个初始值
 						  float time_start = imu_stampedtransforms.last().time;
 						  Transform transform_start = imu_stampedtransforms.last().transform;
 						  // 倒序遍历  寻找第一个 距离最新的imu 时间刚好大于等于0.1的
@@ -595,7 +604,7 @@ namespace lio {
 						  DLOG(INFO) << "time diff: " << time_end - time_start;
 						  DLOG(INFO) << "transform diff: " << transform_es_;
 						  DLOG(INFO) << "transform diff norm: " << transform_es_.pos.norm();
-						  
+						  // 如果不cutoff_deskew（中断去除畸变） 也就是要去除畸变
 						  if (!estimator_config_.cutoff_deskew) {
 							  // 对所有的点去除运动畸变   然后都变换到这一个sweep的最后一个时刻
 							  TransformToEnd(laser_cloud_surf_last_, transform_es_, 10);
@@ -663,7 +672,9 @@ namespace lio {
 					  Twist<double> transform_lb = transform_lb_.cast<double>();
 					  Eigen::Vector3d Ps_pivot = Ps_[pivot_idx];
 					  Eigen::Matrix3d Rs_pivot = Rs_[pivot_idx];
+					  // TODO 这里不知道变换成了哪里的坐标系     之后搞明白
 					  Quaterniond rot_pivot(Rs_pivot * transform_lb.rot.inverse());
+					  //
 					  Eigen::Vector3d pos_pivot = Ps_pivot - rot_pivot * transform_lb.pos;
 					  Twist<double> transform_pivot = Twist<double>(rot_pivot, pos_pivot);
 					  local_odom_.pose.pose.orientation.x = transform_pivot.rot.x();
@@ -674,7 +685,7 @@ namespace lio {
 					  local_odom_.pose.pose.position.y = transform_pivot.pos.y();
 					  local_odom_.pose.pose.position.z = transform_pivot.pos.z();
 					  pub_local_odom_.publish(local_odom_);
-					  
+					  // TODO 为什么这里可以这样变换到lidar坐标系下
 					  laser_odom_.header.stamp = header.stamp;
 					  laser_odom_.header.seq += 1;
 					  Eigen::Vector3d Ps_last = Ps_.last();
@@ -794,6 +805,7 @@ namespace lio {
 	  bool init_result = ImuInitializer::Initialization(all_laser_transforms_, Vs_, Bas_, Bgs_,
 	                                                    g_vec_in_laser, transform_lb_, R_WI_);
 	  // TODO: update states Ps_
+	  // 利用优化出来的transform，调整slide window中每一帧的R和t
 	  for (size_t i = 0; i < estimator_config_.window_size + 1; ++i) {
 		  const Transform &trans_li = all_laser_transforms_[i].second.transform;
 		  Transform trans_bi = trans_li * transform_lb_;
@@ -804,6 +816,11 @@ namespace lio {
 	  Matrix3d R0 = R_WI_.transpose();
 	  
 	  double yaw = R2ypr(R0 * Rs_[0]).x();
+	  // eval用于解决混淆的问题
+	  // 等价于
+	  // X = (ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0).eval();
+	  // R0 = X
+	  // 解释见：https://www.cnblogs.com/houkai/p/6349990.html
 	  R0 = (ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0).eval();
 	  
 	  R_WI_ = R0.transpose();
@@ -1227,11 +1244,13 @@ namespace lio {
   }
   
   void Estimator::SolveOptimization() {
+  	// 之前是cir_buf_count_ == estimator_config_.window_size才进来的，应该不会出问题
 	  if (cir_buf_count_ < estimator_config_.window_size && estimator_config_.imu_factor) {
 		  LOG(ERROR) << "enter optimization before enough count: " << cir_buf_count_ << " < "
 		             << estimator_config_.window_size;
 		  return;
 	  }
+	  // 计时
 	  TicToc tic_toc_opt;
 	  bool turn_off = true;
 	  
@@ -1530,7 +1549,7 @@ namespace lio {
 //		}
 //		//endregion
 	  
-	  // FIXME: Is marginalization needed in this framework? Yes, needed for extrinsic parameters.
+	  // FIXME: Is marginalization(边缘化) needed in this framework? Yes, needed for extrinsic parameters.
 	  
 	  DoubleToVector();
 	  
@@ -1855,7 +1874,7 @@ namespace lio {
   }
   
   void Estimator::SlideWindow() { // NOTE: this function is only for the states and the local map
-	  // 这个数值是在BuildLocalMap函数里面的，因为之前没有初始化，没有进入BuildLocalMap函数里面，所以这个数值始终都是false
+	  // 下面这个数值是在BuildLocalMap函数里面的，因为之前没有初始化，没有进入BuildLocalMap函数里面，所以这个数值始终都是false
 	  if (init_local_map_) {
 		  int pivot_idx = estimator_config_.window_size - estimator_config_.opt_window_size;
 		  // 获取外参数矩阵
