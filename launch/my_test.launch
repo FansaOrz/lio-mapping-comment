@@ -1,0 +1,4 @@
+<launch>  
+<include file="$(find lio)/launch/test_indoor.launch"/>
+<include file="$(find lio)/launch/map_4D_indoor.launch"/>
+</launch>

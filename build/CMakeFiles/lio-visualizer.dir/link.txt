@@ -1,1 +1,0 @@
-/usr/bin/g++-5  -fPIC   -O3 -DNDEBUG   -shared -Wl,-soname,liblio-visualizer.so -o devel/lib/liblio-visualizer.so CMakeFiles/lio-visualizer.dir/src/visualizer/Visualizer.cc.o 

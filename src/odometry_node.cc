@@ -24,6 +24,9 @@
 * along with LIO-mapping.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//
+// Created by hyye on 3/15/18.
+//
 
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
@@ -47,24 +50,24 @@ using namespace mathutils;
 DEFINE_int32(io_ratio, 2, "ratio of io");
 
 int main(int argc, char **argv) {
-	
-	google::InitGoogleLogging(argv[0]);
-	FLAGS_alsologtostderr = true;
-	
-	ros::init(argc, argv, "point_odometry");
-	
-	ros::NodeHandle nh("~");
-	
-	PointOdometry odometry(0.1, FLAGS_io_ratio);
-	odometry.SetupRos(nh);
-	odometry.Reset();
-	
-	ros::Rate r(100);
-	while (ros::ok()) {
-		odometry.Process();
-		ros::spinOnce();
-		r.sleep();
-	}
-	
-	return 0;
+
+  google::InitGoogleLogging(argv[0]);
+  FLAGS_alsologtostderr = true;
+
+  ros::init(argc, argv, "point_odometry");
+
+  ros::NodeHandle nh("~");
+
+  PointOdometry odometry(0.1, FLAGS_io_ratio);
+  odometry.SetupRos(nh);
+  odometry.Reset();
+
+  ros::Rate r(100);
+  while (ros::ok()) {
+    odometry.Process();
+    ros::spinOnce();
+    r.sleep();
+  }
+
+  return 0;
 }

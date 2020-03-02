@@ -212,19 +212,19 @@ inline Eigen::Matrix<typename Derived::Scalar, 3, 3> ypr2R(const Eigen::MatrixBa
   Scalar_t r = ypr(2) / 180.0 * M_PI;
 
   Eigen::Matrix<Scalar_t, 3, 3> Rz;
-  Rz << cos(y),   -sin(y),  0,
-      sin(y),     cos(y),   0,
-         0,         0,      1;
+  Rz << cos(y), -sin(y), 0,
+      sin(y), cos(y), 0,
+      0, 0, 1;
 
   Eigen::Matrix<Scalar_t, 3, 3> Ry;
-  Ry << cos(p), 0.,   sin(p),
-      0.,       1.,   0.,
-      -sin(p),  0.,   cos(p);
+  Ry << cos(p), 0., sin(p),
+      0., 1., 0.,
+      -sin(p), 0., cos(p);
 
   Eigen::Matrix<Scalar_t, 3, 3> Rx;
-  Rx << 1.,   0.,      0.,
-      0.,     cos(r),  -sin(r),
-      0.,     sin(r),  cos(r);
+  Rx << 1., 0., 0.,
+      0., cos(r), -sin(r),
+      0., sin(r), cos(r);
 
   return Rz * Ry * Rx;
 }

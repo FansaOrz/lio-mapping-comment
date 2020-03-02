@@ -31,111 +31,122 @@
 #include "imu_processor/MeasurementManager.h"
 
 namespace lio {
-	
-	void MeasurementManager::SetupRos(ros::NodeHandle &nh) {
-		auto is_ros_setup_ = true;
-		
-		nh_ = nh;
-		
-		auto sub_imu_ = nh_.subscribe<sensor_msgs::Imu>(mm_config_.imu_topic,
-		                                                1000,
-		                                                &MeasurementManager::ImuHandler,
-		                                                this,
-		                                                ros::TransportHints().tcpNoDelay());
-		
-		
-		// compact data是由PointOdometry处理完点云数据之后，发布的压缩后的数据
-		auto sub_compact_data_ = nh_.subscribe<sensor_msgs::PointCloud2>(mm_config_.compact_data_topic,
-		                                                                 10,
-		                                                                 &MeasurementManager::CompactDataHandler,
-		                                                                 this);
-	}
-	
-	PairMeasurements MeasurementManager::GetMeasurements() {
-		
-		PairMeasurements measurements;
-		
-		while (true) {
-			
-			if (mm_config_.enable_imu) {
-				// compact_data是由lio estimator节点发布的压缩点云数据
-				// 当任意一个缓存器数据空了，就将当前的measurements返回
-				if (imu_buf_.empty() || compact_data_buf_.empty()) {
-					return measurements;
-				}
-				// imu_buf和compact_data_buf都是队列类型的，front代表队列第一个元素，back代表队列最后一个元素
-				// 如果imu缓存器中最后一个数据都比compact第一个数据小，即：
-				// ====imu=========
-				//                           ======compact=====
-				if (imu_buf_.back()->header.stamp.toSec() <= compact_data_buf_.front()->header.stamp.toSec() + mm_config_.msg_time_delay) {
-					//ROS_DEBUG("wait for imu, only should happen at the beginning");
-					// Count for waiting time
-					return measurements;
-				}
-				// 如果imu的第一个数据比compact的最后一个数据还晚，即：
-				// ====compact======
-				//                            =====imu=======
-				// 此时就把compact的第一个数据弹出（因为没有相对应的imu数据和它配对，这个数据就没用了）
-				if (imu_buf_.front()->header.stamp.toSec() >= compact_data_buf_.front()->header.stamp.toSec() + mm_config_.msg_time_delay) {
-					ROS_DEBUG("throw compact_data, only should happen at the beginning");
-					compact_data_buf_.pop();
-					continue;
-				}
-				// 获取compact点云队列的第一个元素并从队列中弹出
-				CompactDataConstPtr compact_data_msg = compact_data_buf_.front();
-				compact_data_buf_.pop();
-				
-				vector<sensor_msgs::ImuConstPtr> imu_measurements;
-				// 将上一次的compact点云到这一次的compact点云过程中的所有的imu数据都放在一个imu_measurements里面，用于后面配成一对，进行处理
-				while (imu_buf_.front()->header.stamp.toSec()
-				       < compact_data_msg->header.stamp.toSec() + mm_config_.msg_time_delay) {
-					imu_measurements.emplace_back(imu_buf_.front());
-					imu_buf_.pop();
-				}
-				// 再多加一个compact点云时间点之后的imu数据
-				// 注意：这里的imu数据就不要从queue中弹出了
-				imu_measurements.emplace_back(imu_buf_.front());
-				
-				if (imu_measurements.empty()) {
-					ROS_DEBUG("no imu between two image");
-				}
-				// 将一个compact数据和很多的imu数据的集合配成一对，压缩到measurements中
-				measurements.emplace_back(imu_measurements, compact_data_msg);
-			} else {
-				vector<sensor_msgs::ImuConstPtr> imu_measurements;
-				if (compact_data_buf_.empty()) {
-					return measurements;
-				}
-				CompactDataConstPtr compact_data_msg = compact_data_buf_.front();
-				compact_data_buf_.pop();
-				measurements.emplace_back(imu_measurements, compact_data_msg);
-			}
-		}
-	}
-	
-	// IMU_data话题的回调函数
-	void MeasurementManager::ImuHandler(const sensor_msgs::ImuConstPtr &raw_imu_msg) {
-		if (raw_imu_msg->header.stamp.toSec() <= imu_last_time_) {
-			LOG(ERROR) << ("imu message in disorder!");
-			return;
-		}
-		
-		imu_last_time_ = raw_imu_msg->header.stamp.toSec();
-		// 存入数据的时候要先锁定，防止其他线程占用
-		buf_mutex_.lock();
-		imu_buf_.push(raw_imu_msg);
-		buf_mutex_.unlock();
-		// 随机唤醒一个等待的线程
-		con_.notify_one();
 
-		lock_guard<mutex> lg(state_mutex_);
-	} // ImuHandler
-	
-	void MeasurementManager::CompactDataHandler(const sensor_msgs::PointCloud2ConstPtr &compact_data_msg) {
-		buf_mutex_.lock();
-		compact_data_buf_.push(compact_data_msg);
-		buf_mutex_.unlock();
-		con_.notify_one();
-	}
-	
+void MeasurementManager::SetupRos(ros::NodeHandle &nh) {
+  is_ros_setup_ = true;
+
+  nh_ = nh;
+
+  sub_imu_ = nh_.subscribe<sensor_msgs::Imu>(mm_config_.imu_topic,
+                                             1000,
+                                             &MeasurementManager::ImuHandler,
+                                             this,
+                                             ros::TransportHints().tcpNoDelay());
+
+  sub_compact_data_ = nh_.subscribe<sensor_msgs::PointCloud2>(mm_config_.compact_data_topic,
+                                                              10,
+                                                              &MeasurementManager::CompactDataHandler,
+                                                              this);
+//  sub_laser_odom_ =
+//      nh_.subscribe<nav_msgs::Odometry>(mm_config_.laser_odom_topic, 10, &MeasurementManager::LaserOdomHandler, this);
+}
+
+PairMeasurements MeasurementManager::GetMeasurements() {
+
+  PairMeasurements measurements;
+
+  while (true) {
+
+    if (mm_config_.enable_imu) {
+
+      if (imu_buf_.empty() || compact_data_buf_.empty()) {
+        return measurements;
+ROS_INFO("no compact data Return...........");
+      }
+
+      if (imu_buf_.back()->header.stamp.toSec()
+          <= compact_data_buf_.front()->header.stamp.toSec() + mm_config_.msg_time_delay) {
+        //ROS_DEBUG("wait for imu, only should happen at the beginning");
+        // Count for waiting time
+        return measurements;
+      }
+
+      if (imu_buf_.front()->header.stamp.toSec()
+          >= compact_data_buf_.front()->header.stamp.toSec() + mm_config_.msg_time_delay) {
+ROS_INFO("yes compact data Return...........");
+        ROS_DEBUG("throw compact_data, only should happen at the beginning");
+        compact_data_buf_.pop();
+        continue;
+      }
+      CompactDataConstPtr compact_data_msg = compact_data_buf_.front();
+      compact_data_buf_.pop();
+
+      vector<sensor_msgs::ImuConstPtr> imu_measurements;
+      while (imu_buf_.front()->header.stamp.toSec()
+          < compact_data_msg->header.stamp.toSec() + mm_config_.msg_time_delay) {
+        imu_measurements.emplace_back(imu_buf_.front());
+        imu_buf_.pop();
+      }
+
+      // NOTE: one message after laser odom msg
+      imu_measurements.emplace_back(imu_buf_.front());
+
+      if (imu_measurements.empty()) {
+        ROS_DEBUG("no imu between two image");
+      }
+      measurements.emplace_back(imu_measurements, compact_data_msg);
+    } else {
+      vector<sensor_msgs::ImuConstPtr> imu_measurements;
+      if (compact_data_buf_.empty()) {
+        return measurements;
+      }
+      CompactDataConstPtr compact_data_msg = compact_data_buf_.front();
+      compact_data_buf_.pop();
+      measurements.emplace_back(imu_measurements, compact_data_msg);
+    }
+
+  }
+
+}
+
+void MeasurementManager::ImuHandler(const sensor_msgs::ImuConstPtr &raw_imu_msg) {
+  if (raw_imu_msg->header.stamp.toSec() <= imu_last_time_) {
+    LOG(ERROR) << ("imu message in disorder!");
+    return;
+  }
+
+  imu_last_time_ = raw_imu_msg->header.stamp.toSec();
+
+  buf_mutex_.lock();
+  imu_buf_.push(raw_imu_msg);
+  buf_mutex_.unlock();
+
+  con_.notify_one();
+
+  {
+    lock_guard<mutex> lg(state_mutex_);
+    // TODO: is it necessary to do predict here?
+//    Predict(raw_imu_msg);
+
+//    std_msgs::Header header = imu_msg->header;
+//    header.frame_id = "world";
+//    if (flag == INITIALIZED)
+//      PubLatestOdometry(states, header);
+  }
+} // ImuHandler
+
+void MeasurementManager::LaserOdomHandler(const nav_msgs::OdometryConstPtr &laser_odom_msg) {
+  buf_mutex_.lock();
+  laser_odom_buf_.push(laser_odom_msg);
+  buf_mutex_.unlock();
+  con_.notify_one();
+}
+
+void MeasurementManager::CompactDataHandler(const sensor_msgs::PointCloud2ConstPtr &compact_data_msg) {
+  buf_mutex_.lock();
+  compact_data_buf_.push(compact_data_msg);
+  buf_mutex_.unlock();
+  con_.notify_one();
+}
+
 }

@@ -1,8 +1,0 @@
-prefix=/home/fansa/Src/317/lio_mapping/catkin_ws/src/lio-mapping/build/devel
-
-Name: lio
-Description: Description of lio
-Version: 0.0.0
-Cflags: 
-Libs: -L/home/fansa/Src/317/lio_mapping/catkin_ws/src/lio-mapping/build/devel/lib 
-Requires: 

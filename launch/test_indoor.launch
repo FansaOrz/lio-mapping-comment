@@ -2,7 +2,7 @@
 
 <launch>
 
-  <node pkg="lio" type="lio_processor_node" name="lio_processor" output="log">
+  <node pkg="lio" type="lio_processor_node" name="lio_processor" output="screen">
   	<param name="rad_diff" type="double" value="1.0" />
   	<param name="infer_start_ori" type="bool" value="false" />
   </node>

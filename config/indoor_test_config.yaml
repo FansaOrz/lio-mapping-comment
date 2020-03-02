@@ -37,13 +37,13 @@ extrinsic_translation: !!opencv-matrix
 
 # optimization options
 run_optimization: 1
-# 用Lidar mapping获得的精确的变换，以及上一帧的IMU的数据来获得最新的IMU的数据，此时IMU就没用了吗？？？？？？？
+
 update_laser_imu: 1
 gravity_fix: 1
 
 plane_projection_factor: 0
 
-imu_factor: 0
+imu_factor: 1
 point_distance_factor: 1
 
 prior_factor: 0

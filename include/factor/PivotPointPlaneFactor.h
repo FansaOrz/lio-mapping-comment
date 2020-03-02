@@ -42,30 +42,28 @@
 #include "utils/geometry_utils.h"
 
 namespace lio {
-	
-	using namespace mathutils;
-	
-	class PivotPointPlaneFactor : public ceres::SizedCostFunction<1, 7, 7, 7> {
-	
-	public:
-		PivotPointPlaneFactor(const Eigen::Vector3d &point,
-		                      const Eigen::Vector4d &coeff);
-		
-		virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const;
-		
-		void Check(double **parameters);
-		
-		Eigen::Vector3d point_;
-		Eigen::Vector4d coeff_;
-		
-		// TODO: necessary?
-		//  static Eigen::Matrix3d sqrt_info;
-		static double sum_t;
-		
-		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-		
-	};
-	
+
+using namespace mathutils;
+
+class PivotPointPlaneFactor : public ceres::SizedCostFunction<1, 7, 7, 7> {
+
+ public:
+  PivotPointPlaneFactor(const Eigen::Vector3d &point,
+                        const Eigen::Vector4d &coeff);
+  virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const;
+  void Check(double **parameters);
+
+  Eigen::Vector3d point_;
+  Eigen::Vector4d coeff_;
+
+  // TODO: necessary?
+//  static Eigen::Matrix3d sqrt_info;
+  static double sum_t;
+
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+};
+
 }
 
 #endif //LIO_PIVOTPOINTPLANEFACTOR_H_

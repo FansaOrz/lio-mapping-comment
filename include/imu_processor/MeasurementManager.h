@@ -56,56 +56,63 @@
 #include "3rdparty/sophus/se3.hpp"
 
 namespace lio {
-	
-	using namespace std;
-	using namespace mathutils;
-	using namespace geometryutils;
-	typedef Twist<float> Transform;
-	typedef Sophus::SO3f SO3f;
-	typedef Sophus::SO3d SO3d;
-	typedef nav_msgs::OdometryConstPtr OdomMsgConstPtr;
-	typedef sensor_msgs::PointCloud2ConstPtr CompactDataConstPtr;
-	typedef sensor_msgs::ImuConstPtr ImuMsgConstPtr;
+
+using namespace std;
+using namespace mathutils;
+using namespace geometryutils;
+typedef Twist<float> Transform;
+typedef Sophus::SO3f SO3f;
+typedef Sophus::SO3d SO3d;
+typedef nav_msgs::OdometryConstPtr OdomMsgConstPtr;
+typedef sensor_msgs::PointCloud2ConstPtr CompactDataConstPtr;
+typedef sensor_msgs::ImuConstPtr ImuMsgConstPtr;
 //typedef vector<pair<vector<ImuMsgConstPtr>, OdomMsgConstPtr> > PairMeasurements;
-	typedef pair<vector<ImuMsgConstPtr>, CompactDataConstPtr> PairMeasurement;
-	typedef vector<PairMeasurement> PairMeasurements;
-	
-	struct MeasurementManagerConfig {
-		string imu_topic = "/imu/data";
-		string compact_data_topic = "/compact_data"; // NOTE: Check if the time is too long
-		double msg_time_delay = 0;
-		bool enable_imu = true;
-	};
-	
-	class MeasurementManager {
-	
-	public:
-		virtual void SetupRos(ros::NodeHandle &nh);
-		
-		void ImuHandler(const sensor_msgs::ImuConstPtr &raw_imu_msg);
-		
-		void CompactDataHandler(const sensor_msgs::PointCloud2ConstPtr &compact_data_msg);
-		
-		PairMeasurements GetMeasurements();
-	
-	protected:
-		ros::NodeHandle nh_;
-		MeasurementManagerConfig mm_config_;
-		// 互斥锁
-		mutex buf_mutex_;
-		mutex state_mutex_;
-		mutex thread_mutex_;
-		std::condition_variable con_;
-		// 队列类型变量		// 先进先出
-		queue<ImuMsgConstPtr> imu_buf_;
-		queue<OdomMsgConstPtr> laser_odom_buf_;
-		queue<CompactDataConstPtr> compact_data_buf_;
-		
-		double imu_last_time_ = -1;
-		double curr_time_ = -1;
-		
-	};
-	
+typedef pair<vector<ImuMsgConstPtr>, CompactDataConstPtr> PairMeasurement;
+typedef vector<PairMeasurement> PairMeasurements;
+
+struct MeasurementManagerConfig {
+  string imu_topic = "/imu/data";
+  string laser_topic = "/velodyne_points";
+  string laser_odom_topic = "/aft_mapped_to_init"; // NOTE: Check if the time is too long
+  string compact_data_topic = "/compact_data"; // NOTE: Check if the time is too long
+  double msg_time_delay = 0;
+  bool enable_imu = true;
+};
+
+class MeasurementManager {
+
+ public:
+  virtual void SetupRos(ros::NodeHandle &nh);
+  void ImuHandler(const sensor_msgs::ImuConstPtr &raw_imu_msg);
+  void LaserOdomHandler(const nav_msgs::OdometryConstPtr &laser_odom_msg);
+  void CompactDataHandler(const sensor_msgs::PointCloud2ConstPtr &compact_data_msg);
+
+  PairMeasurements GetMeasurements();
+
+ protected:
+  ros::NodeHandle nh_;
+  TicToc mm_tic_toc_;
+  MeasurementManagerConfig mm_config_;
+
+  mutex buf_mutex_;
+  mutex state_mutex_;
+  mutex thread_mutex_;
+  std::condition_variable con_;
+  queue<ImuMsgConstPtr> imu_buf_;
+  queue<OdomMsgConstPtr> laser_odom_buf_;
+  queue<CompactDataConstPtr> compact_data_buf_;
+
+  double imu_last_time_ = -1;
+  double curr_time_ = -1;
+
+  ros::Subscriber sub_imu_;
+  ros::Subscriber sub_laser_odom_;
+  ros::Subscriber sub_compact_data_;
+
+  bool is_ros_setup_ = false;
+
+};
+
 }
 
 #endif //LIO_MEASUREMENTMANAGER_H_

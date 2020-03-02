@@ -1,1 +1,0 @@
-/usr/bin/g++-5  -fPIC   -O3 -DNDEBUG   -shared -Wl,-soname,liblio-feature-manager.so -o devel/lib/liblio-feature-manager.so CMakeFiles/lio-feature-manager.dir/src/feature_manager/FeatureManager.cc.o 
