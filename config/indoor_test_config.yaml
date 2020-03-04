@@ -50,6 +50,7 @@ prior_factor: 0
 
 marginalization_factor: 1
 
+# 输入的激光
 odom_io: 2
 
 pcl_viewer: 0

@@ -123,9 +123,9 @@ PointMapping::PointMapping(float scan_period,
   down_size_filter_map_.setLeafSize(0.6, 0.6, 0.6);
 
   // setup down size filters indoor
-//  down_size_filter_corner_.setLeafSize(0.1, 0.1, 0.1);
-//  down_size_filter_surf_.setLeafSize(0.2, 0.2, 0.2);
-//  down_size_filter_map_.setLeafSize(0.2, 0.2, 0.2);
+/*  down_size_filter_corner_.setLeafSize(0.1, 0.1, 0.1);
+  down_size_filter_surf_.setLeafSize(0.2, 0.2, 0.2);
+  down_size_filter_map_.setLeafSize(0.2, 0.2, 0.2);*/
 } // PointMapping
 
 void PointMapping::SetupRos(ros::NodeHandle &nh, bool enable_sub) {
@@ -143,10 +143,10 @@ void PointMapping::SetupRos(ros::NodeHandle &nh, bool enable_sub) {
 //  pub_diff_odometry_ = nh.advertise<nav_msgs::Odometry>("/laser_odom_to_last", 5);
 
   if (enable_sub) {
-
+		// compact_data_参数默认为true
     if (compact_data_) {
-      sub_compact_data_ =
-          nh.subscribe<sensor_msgs::PointCloud2>("/compact_data", 2, &PointMapping::CompactDataHandler, this);
+      sub_compact_data_ = nh.subscribe<sensor_msgs::PointCloud2>("/compact_data", 2,
+      				&PointMapping::CompactDataHandler, this);
     } else {
       // subscribe to scan registration topics
       sub_laser_cloud_corner_last_ = nh.subscribe<sensor_msgs::PointCloud2>
@@ -161,8 +161,7 @@ void PointMapping::SetupRos(ros::NodeHandle &nh, bool enable_sub) {
       sub_laser_odometry_ = nh.subscribe<nav_msgs::Odometry>
           ("/laser_odom_to_init", 2, &PointMapping::LaserOdometryHandler, this);
 
-//  sub_imu_trans_ = node.subscribe<sensor_msgs::PointCloud2>
-//      ("/imu_trans", 5, &LaserOdometry::ImuTransHandler, this);
+			//  sub_imu_trans_ = node.subscribe<sensor_msgs::PointCloud2>("/imu_trans", 5, &LaserOdometry::ImuTransHandler, this);
     }
   }
 
@@ -440,24 +439,23 @@ void PointMapping::OptimizeTransformTobeMapped() {
 
           // NOTE: (P1 - P2) x ((P0 - P1)x(P0 - P2)), point to the point
 
-//          float a012 = sqrt(((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1))
-//                                * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1))
-//                                + ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1))
-//                                    * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1))
-//                                + ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1))
-//                                    * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1)));
+/*          float a012 = sqrt(((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1))
+                                * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1))
+                                + ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1))
+                                    * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1))
+                                + ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1))
+                                    * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1)));
 
-//          float l12 = sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
+          float l12 = sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
 
-//          float la = ((y1 - y2) * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1))
-//              + (z1 - z2) * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1))) / a012 / l12;
-//
-//          float lb = -((x1 - x2) * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1))
-//              - (z1 - z2) * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1))) / a012 / l12;
-//
-//          float lc = -((x1 - x2) * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1))
-//              + (y1 - y2) * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1))) / a012 / l12;
+          float la = ((y1 - y2) * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1))
+              + (z1 - z2) * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1))) / a012 / l12;
 
+          float lb = -((x1 - x2) * ((x0 - x1) * (y0 - y2) - (x0 - x2) * (y0 - y1))
+              - (z1 - z2) * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1))) / a012 / l12;
+
+          float lc = -((x1 - x2) * ((x0 - x1) * (z0 - z2) - (x0 - x2) * (z0 - z1))
+              + (y1 - y2) * ((y0 - y1) * (z0 - z2) - (y0 - y2) * (z0 - z1))) / a012 / l12;*/
           Eigen::Vector3f a012_vec = (X0 - X1).cross(X0 - X2);
 
           Eigen::Vector3f normal_to_point = ((X1 - X2).cross(a012_vec)).normalized();
@@ -729,23 +727,18 @@ void PointMapping::OptimizeTransformTobeMapped() {
 
       spc.first = CalcPointDistance(coeff_in_map); // score
       spc.second.first = p_ori; // p_ori
-
-//      spc.second.second = coeff_in_map; // coeff in map
-//      spc.second.second.intensity = coeff_in_map.intensity
-//          - (coeff_in_map.x * p_in_map.x + coeff_in_map.y * p_in_map.y + coeff_in_map.z * p_in_map.z);
-
+/*      spc.second.second = coeff_in_map; // coeff in map
+      spc.second.second.intensity = coeff_in_map.intensity
+          - (coeff_in_map.x * p_in_map.x + coeff_in_map.y * p_in_map.y + coeff_in_map.z * p_in_map.z);*/
       spc.second.second = abs_coeff_in_map;
-//      LOG_IF(INFO, p_in_map.x * abs_coeff_in_map.x + p_in_map.y * abs_coeff_in_map.y + p_in_map.z * abs_coeff_in_map.z
-//          + abs_coeff_in_map.intensity < 0)
-//      << "distance: " << p_in_map.x * abs_coeff_in_map.x + p_in_map.y * abs_coeff_in_map.y
-//          + p_in_map.z * abs_coeff_in_map.z + abs_coeff_in_map.intensity << " < 0";
-
+/*      LOG_IF(INFO, p_in_map.x * abs_coeff_in_map.x + p_in_map.y * abs_coeff_in_map.y + p_in_map.z * abs_coeff_in_map.z
+          + abs_coeff_in_map.intensity < 0)
+      << "distance: " << p_in_map.x * abs_coeff_in_map.x + p_in_map.y * abs_coeff_in_map.y
+          + p_in_map.z * abs_coeff_in_map.z + abs_coeff_in_map.intensity << " < 0";*/
       score_point_coeff_.insert(spc);
-
-
-//      DLOG(INFO) << "distance * scale: "
-//                << coeff_world.x * p_in_map.x + coeff_world.y * p_in_map.y + coeff_world.z * p_in_map.z
-//                    + spc.second.second.intensity;
+/*      DLOG(INFO) << "distance * scale: "
+                << coeff_world.x * p_in_map.x + coeff_world.y * p_in_map.y + coeff_world.z * p_in_map.z
+                    + spc.second.second.intensity;*/
 
     }
 //    DLOG(INFO) << "^^^^^^^^: " << transform_aft_mapped_;
@@ -926,9 +919,9 @@ void PointMapping::Process() {
   laser_cloud_valid_idx_.clear();
   laser_cloud_surround_idx_.clear();
 
-//  DLOG(INFO) << "center_after: " << center_cube_i << " " << center_cube_j << " " << center_cube_k;
-//  DLOG(INFO) << "laser_cloud_cen: " << laser_cloud_cen_length_ << " " << laser_cloud_cen_width_ << " "
-//            << laser_cloud_cen_height_;
+/*  DLOG(INFO) << "center_after: " << center_cube_i << " " << center_cube_j << " " << center_cube_k;
+  DLOG(INFO) << "laser_cloud_cen: " << laser_cloud_cen_length_ << " " << laser_cloud_cen_width_ << " "
+            << laser_cloud_cen_height_;*/
 
   for (int i = center_cube_i - 2; i <= center_cube_i + 2; ++i) {
     for (int j = center_cube_j - 2; j <= center_cube_j + 2; ++j) {
@@ -973,10 +966,10 @@ void PointMapping::Process() {
 
           size_t cube_idx = ToIndex(i, j, k);
 
-//          DLOG(INFO) << "ToIndex, i, j, k " << cube_idx << " " << i << " " << j << " " << k;
-//          int tmpi, tmpj, tmpk;
-//          FromIndex(cube_idx, tmpi, tmpj, tmpk);
-//          DLOG(INFO) << "FromIndex, i, j, k " << cube_idx << " " << tmpi << " " << tmpj << " " << tmpk;
+/*          DLOG(INFO) << "ToIndex, i, j, k " << cube_idx << " " << i << " " << j << " " << k;
+          int tmpi, tmpj, tmpk;
+          FromIndex(cube_idx, tmpi, tmpj, tmpk);
+          DLOG(INFO) << "FromIndex, i, j, k " << cube_idx << " " << tmpi << " " << tmpj << " " << tmpk;*/
 
           if (is_in_laser_fov) {
             laser_cloud_valid_idx_.push_back(cube_idx);
@@ -1267,12 +1260,12 @@ void PointMapping::PublishResults() {
   odom_aft_mapped_.pose.pose.position.y = transform_aft_mapped_.pos.y();
   odom_aft_mapped_.pose.pose.position.z = transform_aft_mapped_.pos.z();
 
-//  odom_aft_mapped_.twist.twist.angular.x = transform_bef_mapped_.rot.x();
-//  odom_aft_mapped_.twist.twist.angular.y = transform_bef_mapped_.rot.y();
-//  odom_aft_mapped_.twist.twist.angular.z = transform_bef_mapped_.rot.z();
-//  odom_aft_mapped_.twist.twist.linear.x = transform_bef_mapped_.pos.x();
-//  odom_aft_mapped_.twist.twist.linear.y = transform_bef_mapped_.pos.y();
-//  odom_aft_mapped_.twist.twist.linear.z = transform_bef_mapped_.pos.z();
+/*  odom_aft_mapped_.twist.twist.angular.x = transform_bef_mapped_.rot.x();
+  odom_aft_mapped_.twist.twist.angular.y = transform_bef_mapped_.rot.y();
+  odom_aft_mapped_.twist.twist.angular.z = transform_bef_mapped_.rot.z();
+  odom_aft_mapped_.twist.twist.linear.x = transform_bef_mapped_.pos.x();
+  odom_aft_mapped_.twist.twist.linear.y = transform_bef_mapped_.pos.y();
+  odom_aft_mapped_.twist.twist.linear.z = transform_bef_mapped_.pos.z();*/
   pub_odom_aft_mapped_.publish(odom_aft_mapped_);
 
   aft_mapped_trans_.stamp_ = time_laser_odometry_;

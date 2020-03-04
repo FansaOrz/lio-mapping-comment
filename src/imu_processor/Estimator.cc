@@ -1,4 +1,4 @@
-/**
+/*
 * This file is part of LIO-mapping.
 * 
 * Copyright (C) 2019 Haoyang Ye <hy.ye at connect dot ust dot hk>,
@@ -224,7 +224,6 @@ namespace lio {
 				//endregion
 			}
 		}
-		
 		estimator_config_ = config;
 	}
 	
@@ -821,7 +820,7 @@ namespace lio {
 		// 这里是如果初始化结束，imu都配置好了，就利用imu的预积分的数值获取这一帧和上一帧之间的变换，
 		// 来更新一下上一帧的transform_tobe_mapped_，作为下一帧优化的初始值
 		// stage_flag_只有 NOT INITED和INITED两种状态
-		// TODO 看到这里了     什么时候会变成INITED？？？？
+		// TODO 什么时候会变成INITED？？？？
 		if (stage_flag_ == INITED) {
 			Transform trans_prev(Eigen::Quaterniond(Rs_[estimator_config_.window_size - 1]).cast<float>(),
 			                     Ps_[estimator_config_.window_size - 1].cast<float>());
@@ -841,7 +840,7 @@ namespace lio {
     DLOG(INFO) << "tobe: " << transform_tobe_mapped_ * transform_incre;*/
 			
 			if (estimator_config_.imu_factor) {
-				//    // WARNING: or using direct date?
+				// WARNING: or using direct date?
 				transform_tobe_mapped_bef_ = transform_tobe_mapped_ * transform_lb_ * d_trans * transform_lb_.inverse();
 				transform_tobe_mapped_ = transform_tobe_mapped_bef_;
 			} else {
@@ -890,7 +889,6 @@ namespace lio {
 		// TODO 是不是每次都是用transform_aft_mapped_作为初始值来优化
 		Transform transform_to_init_ = transform_aft_mapped_;
 		ProcessLaserOdom(transform_to_init_, header);
-
 /* NOTE: will be updated in PointMapping's OptimizeTransformTobeMapped
   if (stage_flag_ == INITED && !estimator_config_.imu_factor) {
     TransformUpdate();
@@ -1057,7 +1055,7 @@ namespace lio {
 	size_t corner_points_size = origin_corner_points->points.size();
 #endif
 
-//    DLOG(INFO) << "transform_to_local: " << transform_to_local;
+		// DLOG(INFO) << "transform_to_local: " << transform_to_local;
 		// 和lasermapping中的surf点是一样的
 		// 遍历所有的surf点
 		
@@ -1101,7 +1099,6 @@ namespace lio {
 				}
 				
 				if (planeValid) {
-					
 					float pd2 = pa * point_sel.x + pb * point_sel.y + pc * point_sel.z + pd;
 					
 					float s = 1 - 0.9f * fabs(pd2) / sqrt(CalcPointDistance(point_sel));
@@ -1339,7 +1336,7 @@ namespace lio {
 				Eigen::Vector3f p(point_ori.x, point_ori.y, point_ori.z);
 				Eigen::Vector3f w(coeff.x, coeff.y, coeff.z);
 
-//      Eigen::Vector3f J_r = w.transpose() * RotationVectorJacobian(R_SO3, p);
+				// Eigen::Vector3f J_r = w.transpose() * RotationVectorJacobian(R_SO3, p);
 				Eigen::Vector3f J_r = -w.transpose() * (local_transform.rot * SkewSymmetric(p));
 				Eigen::Vector3f J_t = w.transpose();
 				
@@ -1578,7 +1575,6 @@ namespace lio {
 #endif
 				}
 			}
-			
 			// 从p到最后的所有点云降采样
 			DLOG(INFO) << "local_surf_points_ptr_->size() bef: " << local_surf_points_ptr_->size();
 			down_size_filter_surf_.setInputCloud(local_surf_points_ptr_);
@@ -2796,7 +2792,6 @@ namespace lio {
 	
 	// NO.1
 	void Estimator::ProcessEstimation() {
-		
 		while (true) {
 			PairMeasurements measurements;
 			std::unique_lock<std::mutex> buf_lk(buf_mutex_);
@@ -2805,21 +2800,19 @@ namespace lio {
 				return (measurements = GetMeasurements()).size() != 0;
 			});
 			buf_lk.unlock();
-
 /*    DLOG(INFO) << "measurement obtained: " << measurements.size() << ", first imu data size: "
               << measurements.front().first.size();*/
-			
 			thread_mutex_.lock();
 			// 遍历measurements里面的变量
 			for (auto &measurement : measurements) {
 				ROS_DEBUG_STREAM("measurements ratio: 1:" << measurement.first.size());
-				// 获取compact的点云数据
+				// 获取compact的点云数据，first是IMU数据，second是compact数据
 				CompactDataConstPtr compact_data_msg = measurement.second;
 				double ax = 0, ay = 0, az = 0, rx = 0, ry = 0, rz = 0;
 				TicToc tic_toc_imu;
 				tic_toc_imu.Tic();
 				// 遍历当前measurement中的imu数据（也就是每一个compact数据对应的那一组imu数据）
-				// 这一步就是在进行 @IMU的预积分
+				// 这一步就是在进行IMU的预积分
 				for (auto &imu_msg : measurement.first) {
 					double imu_time = imu_msg->header.stamp.toSec();
 					// 记录一下点云的时间点
@@ -2841,11 +2834,12 @@ namespace lio {
 						rx = imu_msg->angular_velocity.x;
 						ry = imu_msg->angular_velocity.y;
 						rz = imu_msg->angular_velocity.z;
-						// 进行IMU的预积分
+						// 进行IMU的预积分，预积分之后Ps_、Rs_、Vs_、Bgs_、Bas_都会有预积分之后的数值
 						ProcessImu(dt, Vector3d(ax, ay, az), Vector3d(rx, ry, rz), imu_msg->header);
 						
-					} else {
-						
+					}
+					// 如果遍历到了最后一个多添加进来的IMU，根据时间插值，精确到compact的结束时间点
+					else {
 						// NOTE: interpolate imu measurement
 						double dt_1 = laser_odom_time - curr_time_;
 						double dt_2 = imu_time - laser_odom_time;
@@ -2862,12 +2856,10 @@ namespace lio {
 						ry = w1 * ry + w2 * imu_msg->angular_velocity.y;
 						rz = w1 * rz + w2 * imu_msg->angular_velocity.z;
 						ProcessImu(dt_1, Vector3d(ax, ay, az), Vector3d(rx, ry, rz), imu_msg->header);
-						
 					}
 				}
 				
 				DLOG(INFO) << "per imu time: " << tic_toc_imu.Toc() / measurement.first.size() << " ms";
-				
 				ROS_DEBUG("processing laser data with stamp %f \n", compact_data_msg->header.stamp.toSec());
 				
 				TicToc t_s;

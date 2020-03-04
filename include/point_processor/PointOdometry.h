@@ -130,21 +130,7 @@ class PointOdometry {
     return true;
   }
 
-  void Spin() {
-    ros::Rate rate(200);
-    bool status = ros::ok();
-
-    // loop until shutdown
-    while (status) {
-      ros::spinOnce();
-
-      // try processing new data
-      Process();
-
-      status = ros::ok();
-      rate.sleep();
-    }
-  }
+  void Spin();
 
  private:
   TicToc tic_toc_;

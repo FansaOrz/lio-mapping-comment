@@ -62,7 +62,7 @@ void Run() {
   MeasurementManagerConfig mm_config;
   EstimatorConfig estimator_config;
   cv::FileStorage fs_settings(config_file, cv::FileStorage::READ);
-
+	// 把参数文件里面的内容赋值
   {
     int tmp_int;
     double tmp_double;
@@ -93,7 +93,7 @@ void Run() {
     Eigen::Vector3d eigen_T;
     cv::cv2eigen(cv_R, eigen_R);
     cv::cv2eigen(cv_T, eigen_T);
-
+	  // imu 2 lidar
     estimator_config.transform_lb = Transform{Eigen::Quaternionf(eigen_R.cast<float>()), eigen_T.cast<float>()};
 
     tmp_int = fs_settings["run_optimization"];
@@ -138,7 +138,7 @@ void Run() {
     tmp_double = fs_settings["msg_time_delay"];
     mm_config.msg_time_delay = tmp_double;
   }
-
+	// 构造函数 赋值
   Estimator estimator(estimator_config);
   estimator.SetupRos(*nh_ptr);
 
@@ -156,14 +156,14 @@ void Run() {
     boost::thread visualizer(boost::bind(&PlaneNormalVisualizer::Spin, &(estimator.normal_vis)));
   }
 
-//  while (!estimator.normal_vis.viewer->wasStopped()) {
-//    {
-//      boost::mutex::scoped_lock lk(estimator.normal_vis.m);
-//      DLOG(INFO) << ">>>>>>> spin <<<<<<<";
-//      estimator.normal_vis.viewer->spinOnce(100);
-//    }
-//    boost::this_thread::sleep(boost::posix_time::microseconds(100000));
-//  }
+/*  while (!estimator.normal_vis.viewer->wasStopped()) {
+    {
+      boost::mutex::scoped_lock lk(estimator.normal_vis.m);
+      DLOG(INFO) << ">>>>>>> spin <<<<<<<";
+      estimator.normal_vis.viewer->spinOnce(100);
+    }
+    boost::this_thread::sleep(boost::posix_time::microseconds(100000));
+  }*/
 
   ros::Rate r(1000);
 
@@ -171,22 +171,24 @@ void Run() {
     ros::spinOnce();
     r.sleep();
   }
-
 }
 
 int main(int argc, char **argv) {
-
+	// GLOG相关
   google::InitGoogleLogging(argv[0]);
   google::ParseCommandLineFlags(&argc, &argv, true);
 
   ros::init(argc, argv, "test_measurement_manager");
   {
     ros::NodeHandle nh("~");
+	  // 构造指针，这样的方式不需要new也不需要delete
     nh_ptr = boost::make_shared<ros::NodeHandle>(nh);
   }
 
-  nh_ptr->param("config_file", config_file, std::string("/home/hyye/dev_ws/src/lio/config/test_config.yaml"));
-  FLAGS_alsologtostderr = true;
+  nh_ptr->param("config_file", config_file, std::string(
+  				"/home/fansa/lio-mapping-origin/src/lio-mapping/config/indoor_test_config.yaml"));
+	// 输出到控制台
+	FLAGS_alsologtostderr = true;
 
   Run();
 

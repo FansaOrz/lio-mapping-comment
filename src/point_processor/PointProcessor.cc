@@ -123,8 +123,7 @@ void PointProcessor::SetupRos(ros::NodeHandle &nh) {
   is_ros_setup_ = true;
 
   // subscribe to raw cloud topic
-  sub_raw_points_ = nh.subscribe<sensor_msgs::PointCloud2>
-      ("/velodyne_points", 2, &PointProcessor::PointCloudHandler, this);
+  sub_raw_points_ = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 2, &PointProcessor::PointCloudHandler, this);
 
   // advertise scan registration topics
   pub_full_cloud_ = nh.advertise<sensor_msgs::PointCloud2>("/full_cloud", 2);
@@ -207,10 +206,10 @@ void PointProcessor::PointToRing() {
 void PointProcessor::PointToRing(const PointCloudConstPtr &cloud_in,
                                  vector<PointCloudPtr> &ring_out,
                                  vector<PointCloudPtr> &intensity_out) {
-//  const std::vector<PointT, Eigen::aligned_allocator<PointT> > &points = cloud_in->points;
-//  vector<int> indices;
-//  PointCloud cloud_filtered;
-//  pcl::removeNaNFromPointCloud(*cloud_in, cloud_filtered, indices);
+/*  const std::vector<PointT, Eigen::aligned_allocator<PointT> > &points = cloud_in->points;
+  vector<int> indices;
+  PointCloud cloud_filtered;
+  pcl::removeNaNFromPointCloud(*cloud_in, cloud_filtered, indices);*/
 
   auto &points = cloud_in->points;
   size_t cloud_size = points.size();
@@ -266,13 +265,13 @@ void PointProcessor::PointToRing(const PointCloudConstPtr &cloud_in,
       start_flag = true;
     }
 
-    // cout << scan_id << " " << azi_rad << endl;
+/*     cout << scan_id << " " << azi_rad << endl;
 
-//    if (config_.deskew) {
-//      p.intensity = azi_rad;
-//    } else {
-//      p.intensity = scan_id;
-//    }
+    if (config_.deskew) {
+      p.intensity = azi_rad;
+    } else {
+      p.intensity = scan_id;
+    }*/
 
     p.intensity = azi_rad;
 #endif
@@ -326,23 +325,23 @@ void PointProcessor::PointToRing(const PointCloudConstPtr &cloud_in,
   ROS_DEBUG_STREAM("ring time: " << tic_toc_.Toc() << " ms");
 
   tic_toc_.Tic();
-  // TODO: De-skew with rel_time, this for loop is not necessary
-  // start_ori_ = NAN;
+/*  // TODO: De-skew with rel_time, this for loop is not necessary
+   start_ori_ = NAN;
 
-//  for (int ring = 0; ring < num_rings_; ++ring) {
-//    if (ring_out[ring]->size() <= 0) {
-//      continue;
-//    }
-//
-//    float azi_rad = ring_out[ring]->front().intensity;
-//    if (start_ori_ != start_ori_) {
-//      start_ori_ = azi_rad;
-//    } else {
-//      start_ori_ = (RadLt(start_ori_, azi_rad) ? start_ori_ : azi_rad);
-//    }
-//    // cout << azi_rad << endl;
-//  }
-  // start_ori_ = ring_out[0]->front().intensity;
+  for (int ring = 0; ring < num_rings_; ++ring) {
+    if (ring_out[ring]->size() <= 0) {
+      continue;
+    }
+
+    float azi_rad = ring_out[ring]->front().intensity;
+    if (start_ori_ != start_ori_) {
+      start_ori_ = azi_rad;
+    } else {
+      start_ori_ = (RadLt(start_ori_, azi_rad) ? start_ori_ : azi_rad);
+    }
+    // cout << azi_rad << endl;
+  }
+   start_ori_ = ring_out[0]->front().intensity;*/
 
   // infer right start_ori_
   if (config_.infer_start_ori_) {
@@ -789,7 +788,8 @@ void PointProcessor::PublishResults() {
     return;
   }
   // publish full resolution and feature point clouds
-  PublishCloudMsg(pub_full_cloud_, cloud_in_rings_, sweep_start_, config_.capture_frame_id);
+//  PublishCloudMsg(pub_full_cloud_, cloud_in_rings_, sweep_start_, config_.capture_frame_id);
+  PublishCloudMsg(pub_full_cloud_, cloud_in_rings_, sweep_start_, "/test_deskewing");
   PublishCloudMsg(pub_corner_points_sharp_, corner_points_sharp_, sweep_start_, config_.capture_frame_id);
   PublishCloudMsg(pub_corner_points_less_sharp_, corner_points_less_sharp_, sweep_start_, config_.capture_frame_id);
   PublishCloudMsg(pub_surf_points_flat_, surface_points_flat_, sweep_start_, config_.capture_frame_id);

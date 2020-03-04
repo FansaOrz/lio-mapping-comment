@@ -75,16 +75,15 @@ void MapBuilder::Transform4DAssociateToMap() {
 }
 
 void MapBuilder::Transform4DUpdate() {
-//  Eigen::Vector3d origin_R0 = R2ypr(transform_tobe_mapped_.rot.normalized().toRotationMatrix().cast<double>());
-//  Eigen::Vector3d origin_R00 = R2ypr(transform_sum_.rot.normalized().toRotationMatrix().cast<double>());
-//
-//  // Z-axix R00 to R0, regard para_pose's R as rotate along the Z-axis first
-//  double y_diff = origin_R0.x() - origin_R00.x();
-//
-//  Eigen::Matrix3f rot_diff = ypr2R(Eigen::Vector3f(y_diff, 0, 0));
-//
-//  transform_tobe_mapped_.rot = rot_diff * transform_sum_.rot.normalized();
+/*  Eigen::Vector3d origin_R0 = R2ypr(transform_tobe_mapped_.rot.normalized().toRotationMatrix().cast<double>());
+  Eigen::Vector3d origin_R00 = R2ypr(transform_sum_.rot.normalized().toRotationMatrix().cast<double>());
 
+  // Z-axix R00 to R0, regard para_pose's R as rotate along the Z-axis first
+  double y_diff = origin_R0.x() - origin_R00.x();
+
+  Eigen::Matrix3f rot_diff = ypr2R(Eigen::Vector3f(y_diff, 0, 0));
+
+  transform_tobe_mapped_.rot = rot_diff * transform_sum_.rot.normalized();*/
   transform_bef_mapped_ = transform_sum_;
   transform_aft_mapped_ = transform_tobe_mapped_;
 }
@@ -115,7 +114,6 @@ void MapBuilder::SetupRos(ros::NodeHandle &nh) {
 
   /// for test
 //  pub_diff_odometry_ = nh.advertise<nav_msgs::Odometry>("/laser_odom_to_last", 5);
-
 
   // subscribe to scan registration topics
   sub_laser_cloud_corner_last_ = nh.subscribe<sensor_msgs::PointCloud2>
@@ -251,37 +249,37 @@ void MapBuilder::ProcessMap() {
   }
 
 //  // NOTE: for debug
-//  {
-//    Eigen::Affine3f transform_to_world;
-//    tf::Transform tf_transform;
-//    Eigen::Matrix3f R_inv;
-//    R_inv << -4.91913910e-01, -5.01145813e-01, -7.11950546e-01,
-//              7.13989130e-01, -7.00156621e-01, -4.78439170e-04,
-//             -4.98237120e-01, -5.08560301e-01, 7.02229444e-01;
-//    transform_to_world.setIdentity();
-//    transform_to_world.linear() = R_inv.transpose();
-//
-//
-//    Eigen::Quaternionf q_eigen(R_inv.transpose());
-//    tf::Quaternion q(tf::Quaternion{q_eigen.x(), q_eigen.y(), q_eigen.z(), q_eigen.w()});
-//    tf_transform.setRotation(q);
-//
-//
-//    // fetch new input cloud
-//    pcl::PointCloud<pcl::PointXYZI>::Ptr transformed_ptr(new pcl::PointCloud<pcl::PointXYZI>());
-//    pcl::PointCloud<pcl::PointXYZI> tmp_cloud;
-//
-//    pcl::transformPointCloud(*laser_cloud_surf_last_, *transformed_ptr, transform_to_world);
-//
-//    pcl::CropBox<pcl::PointXYZI> box_filter;
-//    box_filter.setMin(Eigen::Vector4f(-12, -5, -3, 1.0));
-//    box_filter.setMax(Eigen::Vector4f(5, 10, 0.6, 1.0));
-//    box_filter.setNegative(true);
-//    box_filter.setInputCloud(transformed_ptr);
-//    box_filter.filter(tmp_cloud);
-//
-//    pcl::transformPointCloud(tmp_cloud, *laser_cloud_surf_last_, transform_to_world.inverse());
-//  }
+/*  {
+    Eigen::Affine3f transform_to_world;
+    tf::Transform tf_transform;
+    Eigen::Matrix3f R_inv;
+    R_inv << -4.91913910e-01, -5.01145813e-01, -7.11950546e-01,
+              7.13989130e-01, -7.00156621e-01, -4.78439170e-04,
+             -4.98237120e-01, -5.08560301e-01, 7.02229444e-01;
+    transform_to_world.setIdentity();
+    transform_to_world.linear() = R_inv.transpose();
+
+
+    Eigen::Quaternionf q_eigen(R_inv.transpose());
+    tf::Quaternion q(tf::Quaternion{q_eigen.x(), q_eigen.y(), q_eigen.z(), q_eigen.w()});
+    tf_transform.setRotation(q);
+
+
+    // fetch new input cloud
+    pcl::PointCloud<pcl::PointXYZI>::Ptr transformed_ptr(new pcl::PointCloud<pcl::PointXYZI>());
+    pcl::PointCloud<pcl::PointXYZI> tmp_cloud;
+
+    pcl::transformPointCloud(*laser_cloud_surf_last_, *transformed_ptr, transform_to_world);
+
+    pcl::CropBox<pcl::PointXYZI> box_filter;
+    box_filter.setMin(Eigen::Vector4f(-12, -5, -3, 1.0));
+    box_filter.setMax(Eigen::Vector4f(5, 10, 0.6, 1.0));
+    box_filter.setNegative(true);
+    box_filter.setInputCloud(transformed_ptr);
+    box_filter.filter(tmp_cloud);
+
+    pcl::transformPointCloud(tmp_cloud, *laser_cloud_surf_last_, transform_to_world.inverse());
+  }*/
 
   // NOTE: the stack points are the last corner or surf poitns
   size_t laser_cloud_corner_last_size = laser_cloud_corner_last_->points.size();
