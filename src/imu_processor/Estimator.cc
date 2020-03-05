@@ -434,16 +434,14 @@ namespace lio {
 
 // TODO: this function can be simplified
 	void Estimator::ProcessLaserOdom(const Transform &transform_in, const std_msgs::Header &header) {
-		
 		ROS_DEBUG(">>>>>>> new laser odom coming <<<<<<<");
 		
 		++laser_odom_recv_count_;
-		// TODO 什么时候会发生这种情况？？？
-		// TODO 查找estimator_config_.init_window_factor有什么用
-		// 还没有初始化    并且      init_window_factor == 0   (init_window_factor由外部赋值)
-		
-		if (stage_flag_ != INITED
-		    && laser_odom_recv_count_ % estimator_config_.init_window_factor != 0) { /// better for initialization
+		// 只有在最开始会满足下面这个条件：
+		// 最开始标志位是INITED并且laser_odom_recv_count_初始化为0，+1后变成1，因此会跳过最开始的第一帧，从第二帧开始执行后面的语句
+		// TODO 为什么要跳过最开始的一帧？
+		// TODO 这样话只有最开始的时候这里会用到，后面每进一次前面这三句都要执行一下，并且没什么用处，可不可以想个办法优化一下
+		if (stage_flag_ != INITED && laser_odom_recv_count_ % estimator_config_.init_window_factor != 0) {
 			return;
 		}
 		
@@ -623,9 +621,7 @@ namespace lio {
 								
 								DLOG(INFO) << "TEST trans_li " << i << ": " << trans_li;
 							}
-							
 							// 如果运行RunInitialization()没成功
-							
 						} else {
 							SlideWindow();
 						}
@@ -893,7 +889,8 @@ namespace lio {
 		DLOG(INFO) << "laser_cloud_corner_stack_downsampled_[" << header.stamp.toSec() << "]: "
 		           << laser_cloud_corner_stack_downsampled_->size();
 		// transform_aft_mapped_存储的是当前lidar坐标系通过地图矫正之后变换到map坐标系的变换
-		// TODO 是不是每次都是用transform_aft_mapped_作为初始值来优化
+		// TODO 初始化之后，是不是transform_aft_mapped_就不由pointmapping生成了？？？？
+		// Estimator类是公有继承PointMapping和MeasurementManager两个类，所以可以直接调用公有成员transform_aft_mapped_
 		Transform transform_to_init_ = transform_aft_mapped_;
 		ProcessLaserOdom(transform_to_init_, header);
 /* NOTE: will be updated in PointMapping's OptimizeTransformTobeMapped

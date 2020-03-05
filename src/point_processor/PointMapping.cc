@@ -1314,5 +1314,4 @@ namespace lio {
 		                                        transform_aft_mapped_.pos.z()));
 		tf_broadcaster_.sendTransform(aft_mapped_trans_);
 	}
-	
 } // namespace lio
