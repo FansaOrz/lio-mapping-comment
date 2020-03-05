@@ -144,6 +144,7 @@ namespace lio {
 		// 初始化的时候，enable_sub为false
 		if (enable_sub) {
 			// compact_data_参数默认为true
+			ROS_WARN("HEHREEEE");
 			if (compact_data_) {
 				sub_compact_data_ = nh.subscribe<sensor_msgs::PointCloud2>("/compact_data", 2,
 				                                                           &PointMapping::CompactDataHandler, this);

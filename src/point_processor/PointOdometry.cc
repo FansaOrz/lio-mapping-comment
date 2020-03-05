@@ -896,7 +896,6 @@ namespace lio {
 					compact_data += (*last_surf_cloud_);
 					compact_data += (*full_cloud_);
 				}
-				
 				PublishCloudMsg(pub_compact_data_, compact_data, sweepTime, "/camera");
 				
 				ROS_DEBUG_STREAM("encode compact data and publish time: " << tic_toc_encoder.Toc() << " ms");

@@ -2479,6 +2479,8 @@ namespace lio {
                         *tmp_points_ptr,
                         Headers_.last().stamp,
                         "/laser_predict");*/
+					// TODO 这里是消除快速旋转产生的畸变的地方
+					// 2020.3.5
 					TransformToEnd(full_stack_.last(), transform_es_, 10, true);
 					PublishCloudMsg(pub_predict_corrected_full_points_,
 					                *(full_stack_.last()),

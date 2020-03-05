@@ -56,7 +56,8 @@ namespace lio {
 				// compact_data是由lio estimator节点发布的压缩点云数据
 				// 当任意一个缓存器数据空了，就将当前的measurements返回
 				if (imu_buf_.empty() || compact_data_buf_.empty()) {
-					ROS_INFO("no compact data Return...........");
+//					std::cout << "IMU size" << imu_buf_.size() << "compact size" << compact_data_buf_.size() << std::endl;
+					// ROS_INFO("no compact data Return...........");
 					return measurements;
 				}
 				// imu_buf和compact_data_buf都是队列类型的，front代表队列第一个元素，back代表队列最后一个元素
@@ -75,7 +76,7 @@ namespace lio {
 				// 此时就把compact的第一个数据弹出（因为没有相对应的imu数据和它配对，这个数据就没用了）（一直弹出，直到compact数据和IMU的第一个数据对齐）
 				if (imu_buf_.front()->header.stamp.toSec()
 				    >= compact_data_buf_.front()->header.stamp.toSec() + mm_config_.msg_time_delay) {
-					ROS_INFO("yes compact data Return...........");
+					// ROS_INFO("yes compact data Return...........");
 					ROS_DEBUG("throw compact_data, only should happen at the beginning");
 					compact_data_buf_.pop();
 					continue;
@@ -160,9 +161,10 @@ namespace lio {
 	
 	void MeasurementManager::CompactDataHandler(const sensor_msgs::PointCloud2ConstPtr &compact_data_msg) {
 		buf_mutex_.lock();
+//		ROS_INFO("IN compact callback");
 		compact_data_buf_.push(compact_data_msg);
+//		cout << "compact size" << compact_data_buf_.size() << endl;
 		buf_mutex_.unlock();
 		con_.notify_one();
 	}
-	
 }
