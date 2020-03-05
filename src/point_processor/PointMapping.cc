@@ -140,8 +140,8 @@ void PointMapping::SetupRos(ros::NodeHandle &nh, bool enable_sub) {
   pub_odom_aft_mapped_ = nh.advertise<nav_msgs::Odometry>("/aft_mapped_to_init", 5);
 
   /// for test
-//  pub_diff_odometry_ = nh.advertise<nav_msgs::Odometry>("/laser_odom_to_last", 5);
-
+//	  pub_diff_odometry_ = nh.advertise<nav_msgs::Odometry>("/laser_odom_to_last", 5);
+	// 初始化的时候，enable_sub为false
   if (enable_sub) {
 		// compact_data_参数默认为true
     if (compact_data_) {
@@ -168,12 +168,12 @@ void PointMapping::SetupRos(ros::NodeHandle &nh, bool enable_sub) {
 } // SetupRos
 
 void PointMapping::CompactDataHandler(const sensor_msgs::PointCloud2ConstPtr &compact_data_msg) {
-
+	// 解耦 compact数据
   TicToc tic_toc_decoder;
-
+	// msg类型的消息转化成pcl类型的消息
   PointCloud compact_points;
   pcl::fromROSMsg(*compact_data_msg, compact_points);
-
+	
   size_t compact_point_size = compact_points.size();
 
   if (compact_point_size < 4) {
@@ -192,7 +192,7 @@ void PointMapping::CompactDataHandler(const sensor_msgs::PointCloud2ConstPtr &co
                << compact_point_size;
     return;
   }
-
+	// 解耦帧间的Transform
   {
     compact_point = compact_points[0];
     transform_sum_.pos.x() = compact_point.x;
@@ -211,6 +211,7 @@ void PointMapping::CompactDataHandler(const sensor_msgs::PointCloud2ConstPtr &co
     full_cloud_->clear();
 
     // TODO: use vector map instead?
+    // 跳过前三个存储其他数据的点
     for (size_t i = 3; i < compact_point_size; ++i) {
       const PointT &p = compact_points[i];
       if (i < 3 + corner_size) {

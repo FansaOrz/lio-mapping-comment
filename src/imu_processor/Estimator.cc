@@ -288,6 +288,7 @@ namespace lio {
 	void Estimator::SetupRos(ros::NodeHandle &nh) {
 		// IMU话题的订阅在这个函数里
 		MeasurementManager::SetupRos(nh);
+		// 初始化的时候把下面这个“enable_sub"变成了false，就是不让PointMapping订阅/compact_data话题
 		PointMapping::SetupRos(nh, false);
 		
 		wi_trans_.frame_id_ = "/camera_init";
@@ -810,11 +811,12 @@ namespace lio {
 		tf_broadcaster_est_.sendTransform(wi_trans_);
 	}
 
-// Measurements里面每一帧激光数据（运动畸变矫正过）的数据都要进入一次这里
+	// Measurements里面每一帧激光数据（运动畸变矫正过，这里的矫正只是用lidar的帧间匹配进行矫正）的数据都要进入一次这里
 	void Estimator::ProcessCompactData(const sensor_msgs::PointCloud2ConstPtr &compact_data,
 	                                   const std_msgs::Header &header) {
 		
 		// 这个函数是 topic compact data的回调函数， 提取了msg类型的compact data的数据内容，并存储起来
+		// 这里调用的是PointMapping里的compact data的回调函数，之前是MeasurementManager里面的
 		PointMapping::CompactDataHandler(compact_data);
 		// 初步猜测：
 		// 这里是如果初始化结束，imu都配置好了，就利用imu的预积分的数值获取这一帧和上一帧之间的变换，
@@ -822,6 +824,7 @@ namespace lio {
 		// stage_flag_只有 NOT INITED和INITED两种状态
 		// TODO 什么时候会变成INITED？？？？
 		if (stage_flag_ == INITED) {
+			// Rs_的大小是window_size+1，因此倒数第二个是 Rs_[window_size-1]，最后一个是Rs_.last
 			Transform trans_prev(Eigen::Quaterniond(Rs_[estimator_config_.window_size - 1]).cast<float>(),
 			                     Ps_[estimator_config_.window_size - 1].cast<float>());
 			Transform trans_curr(Eigen::Quaterniond(Rs_.last()).cast<float>(),
@@ -830,7 +833,6 @@ namespace lio {
 			Transform d_trans = trans_prev.inverse() * trans_curr;
 			
 			Transform transform_incre(transform_bef_mapped_.inverse() * transform_sum_.transform());
-
 /*    DLOG(INFO) << "base incre in laser world: " << d_trans;
     DLOG(INFO) << "incre in laser world: " << transform_incre;
     DLOG(INFO) << "before opt: " << transform_tobe_mapped_ * transform_lb_ * d_trans * transform_lb_.inverse();
@@ -838,12 +840,17 @@ namespace lio {
     DLOG(INFO) << "curr * lb: " << trans_curr * transform_lb_.inverse();
 
     DLOG(INFO) << "tobe: " << transform_tobe_mapped_ * transform_incre;*/
-			
+			// 如果有IMU的话，
 			if (estimator_config_.imu_factor) {
 				// WARNING: or using direct date?
 				transform_tobe_mapped_bef_ = transform_tobe_mapped_ * transform_lb_ * d_trans * transform_lb_.inverse();
 				transform_tobe_mapped_ = transform_tobe_mapped_bef_;
-			} else {
+			}
+			// 如果没有IMU的话，就用上一次的transform当做这次的incre
+			else {
+				//  transform_tobe_mapped_ = transform_tobe_mapped_ * transform_incre;
+				// 这里的函数做的是transform_tobe_mapped_ = transform_tobe_mapped_ * transform_incre;
+				
 				TransformAssociateToMap();
 				DLOG(INFO) << ">>>>> transform original tobe <<<<<: " << transform_tobe_mapped_;
 			}
@@ -897,7 +904,6 @@ namespace lio {
 	}
 	
 	bool Estimator::RunInitialization() {
-		
 		// NOTE: check IMU observibility, adapted from VINS-mono
 		{
 			PairTimeLaserTransform laser_trans_i, laser_trans_j;
@@ -925,14 +931,12 @@ namespace lio {
 			}
 			
 			var = sqrt(var / (estimator_config_.window_size));
-			
 			DLOG(INFO) << "IMU variation: " << var;
 			if (var < 0.25) {
 				ROS_INFO("IMU excitation not enough!");
 				return false;
 			}
 		}
-		
 		Eigen::Vector3d g_vec_in_laser;
 		// 利用lidar的T和IMU的T来获取g和获取R_WI_
 		bool init_result = ImuInitializer::Initialization(all_laser_transforms_, Vs_, Bas_, Bgs_,
@@ -2866,7 +2870,6 @@ namespace lio {
 				
 				// 处理compact点云数据
 				this->ProcessCompactData(compact_data_msg, compact_data_msg->header);
-
 /*      const auto &pos_from_msg = compact_data_msg->pose.pose.position;
       const auto &quat_from_msg = compact_data_msg->pose.pose.orientation;
       transform_to_init_.pos.x() = pos_from_msg.x;
@@ -2877,12 +2880,10 @@ namespace lio {
       transform_to_init_.rot.x() = quat_from_msg.x;
       transform_to_init_.rot.y() = quat_from_msg.y;
       transform_to_init_.rot.z() = quat_from_msg.z;*/
-				
 				// TODO: move all the processes into node?
 /*
       DLOG(INFO) << transform_to_init_;
       ProcessLaserOdom(transform_to_init_, compact_data_msg->header);*/
-				
 				double whole_t = t_s.Toc();
 /*      PrintStatistics(this, whole_t);
       std_msgs::Header header = compact_data_msg->header;
@@ -2902,16 +2903,12 @@ namespace lio {
 			thread_mutex_.unlock();
 			buf_mutex_.lock();
 			state_mutex_.lock();
-
 /*    if (after initialization) {
       // update the predicted
       Update();
     }*/
-			
 			state_mutex_.unlock();
 			buf_mutex_.unlock();
 		}
-		
 	}
-	
 } // namespace lio
