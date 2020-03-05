@@ -86,7 +86,6 @@ namespace lio {
 			PairTimeLaserTransform &laser_trans_j = all_laser_transforms[i + 1];
 			laser_trans_j.second.pre_integration->Repropagate(Vector3d::Zero(), Bgs[0]);
 		}
-		
 	}
 	
 	bool ApproximateGravity(CircularBuffer<PairTimeLaserTransform> &all_laser_transforms, Vector3d &g,
@@ -148,7 +147,6 @@ namespace lio {
 
 /*    A += tmp_A;
     b -= tmp_b;*/
-		
 		}
 		
 		A = A * 10000.0;
@@ -168,7 +166,6 @@ namespace lio {
 		double g_norm = all_laser_transforms.first().second.pre_integration->config_.g_norm;
 		
 		return fabs(g_approx.norm() - g_norm) <= 1.0;
-		
 	}
 	
 	void RefineGravityAccBias(CircularBuffer<PairTimeLaserTransform> &all_laser_transforms,
@@ -209,7 +206,6 @@ namespace lio {
 
   DLOG(INFO) << (r_WI * gI_n * g_approx.norm()).transpose();
   DLOG(INFO) << g_approx.transpose();*/
-		
 		g_refined = g_refined.normalized() * g_norm;
 		
 		for (int k = 0; k < 5; ++k) {
@@ -306,7 +302,6 @@ namespace lio {
 			DLOG(INFO) << "Vs[" << i << "]" << Vs[i].transpose();
 		}
 	}
-
 /*void UpdateVelocities(CircularBuffer<PairTimeLaserTransform> &all_laser_transforms,
                       CircularBuffer<Vector3d> &Vs,
                       CircularBuffer<Vector3d> &Bas,
@@ -406,14 +401,12 @@ namespace lio {
 /*  cout << x.transpose << endl;
   DLOG(INFO) << "singular values: " << svd.singularValues().transpose();
   cout << cov << endl;*/
-		
 		// NOTE: covariance 0.25
 		if (cov(1) > 0.25) {
 			return true;
 		} else {
 			return false;
 		}
-		
 	}
 	
 	bool ImuInitializer::Initialization(CircularBuffer<PairTimeLaserTransform> &all_laser_transforms,
@@ -432,7 +425,6 @@ namespace lio {
 		if (!ApproximateGravity(all_laser_transforms, g, transform_lb)) {
 			return false;
 		};
-
 /*  DLOG(INFO) << "ApproximateGravity time: " << tic_toc.Toc() << " ms";
   tic_toc.Toc();*/
 		// 利用刚才获取的g再一次校准
@@ -442,9 +434,6 @@ namespace lio {
   tic_toc.Tic();
 
   DLOG(INFO) << "UpdateVecocities time: " << tic_toc.Toc() << " ms";*/
-		
 		return true;
-		
 	}
-	
 }

@@ -337,11 +337,8 @@ namespace lio {
 	
 	void Estimator::ProcessImu(double dt, const Vector3d &linear_acceleration,
 	                           const Vector3d &angular_velocity, const std_msgs::Header &header) {
-		// TODO first_imu这个变量有什么用？为什么下面还要把它变成true
-		// 这个if只会进来一次，程序最开始的时候first_imu是false，之后就一直是true。
-		// 猜想：======这个地方false和true搞混了吧？？？？？？
-		if (!first_imu_) {
-			first_imu_ = true;
+		if (first_imu_) {
+			first_imu_ = false;
 			// 获取并储存传进来的参数值
 			acc_last_ = linear_acceleration;
 			gyr_last_ = angular_velocity;
@@ -369,7 +366,6 @@ namespace lio {
 #endif
 			//endregion
 		}
-
 /*  if (!pre_integrations_[cir_buf_count_]) {
     pre_integrations_.push(std::make_shared<IntegrationBase>(IntegrationBase(acc_last_,
                                                                              gyr_last_,
@@ -377,13 +373,14 @@ namespace lio {
                                                                              Bgs_[cir_buf_count_],
                                                                              estimator_config_.pim_config)));
   }*/
-		
 		// NOTE: Do not update tmp_pre_integration_ until first laser comes
 		// TODO 什么时候  cir_buf_count_ != 0
 		// 解释：当获得一次compact_data的时候，最开始的时候缓冲区数量还不够开始优化的，就cir_buf_count_++
 		// 这里是进行IMU的预积分，必须cir_buf_count_>0，缓冲器里面有数据才可以预积分
 		if (cir_buf_count_ != 0) {
-			
+			// 这里push的过程中，在IntegrationBase类中包含了一个中值预积分步骤
+			// TODO 下面的预积分将结果存在 tmp_pre_integration_，用于 ？？？？
+			// 再下面的预积分步骤将结果存在 Rs_ Ps_ Vs_ Bas_
 			tmp_pre_integration_->push_back(dt, linear_acceleration, angular_velocity);
 			
 			dt_buf_[cir_buf_count_].push_back(dt);
@@ -437,10 +434,8 @@ namespace lio {
 		ROS_DEBUG(">>>>>>> new laser odom coming <<<<<<<");
 		
 		++laser_odom_recv_count_;
-		// 只有在最开始会满足下面这个条件：
-		// 最开始标志位是INITED并且laser_odom_recv_count_初始化为0，+1后变成1，因此会跳过最开始的第一帧，从第二帧开始执行后面的语句
-		// TODO 为什么要跳过最开始的一帧？
-		// TODO 这样话只有最开始的时候这里会用到，后面每进一次前面这三句都要执行一下，并且没什么用处，可不可以想个办法优化一下
+		// 在没有初始化的时候，隔一帧用一次，用于后面的初始化，
+		// TODO 应该是为了运动的范围大一点便于初始化？？
 		if (stage_flag_ != INITED && laser_odom_recv_count_ % estimator_config_.init_window_factor != 0) {
 			return;
 		}
@@ -450,20 +445,19 @@ namespace lio {
 		// 把此时通过map得到的精确的transform_in存储起来   transform_in 代表XXXX变换到map坐标系的transform
 		// TODO 第一次XXXX是代表Lidar（因为第一次没有初始化，用的map的优化的值）     之后的代表什么？？？
 		// 如果每次都是使用的transform_aft_mapped_作为R t初始值，那么就是代表lidar到map的变换
-		
 		// 这里把预积分计算的R，t和map优化的R，t都存储进来，用于后面非线性优化
-		
 		LaserTransform laser_transform(header.stamp.toSec(), transform_in);
-		// 对应的预积分结果也存储进来
+		// tmp_pre_integration_储存的是中值预积分的结果，ProcessIMU进行了两次预积分，
+		// 一次存进tmp_pre_integration_
+		// 一次存进Rs Ps Vs Bgs
 		laser_transform.pre_integration = tmp_pre_integration_;
 		pre_integrations_.push(tmp_pre_integration_);
 		
-		// reset tmp_pre_integration_
 		// 存储之后，重置 tmp_pre_integration_
-		
 		tmp_pre_integration_.reset();
 		// make_shared是为了更好的初始化，提高性能     旧的数据传输到pre_integrations_里面了，现在更新新的数据
-		
+		// 由于Bas需要后面的非线性优化一起更新，所以要先把上一次的tmp_pre_integration_重置清空，
+		//    ===然后更新上一次非线性优化得到的Bas来做下一次的中值积分，再存储到tmp_pre_integration_
 		tmp_pre_integration_ = std::make_shared<IntegrationBase>(IntegrationBase(acc_last_,
 		                                                                         gyr_last_,
 		                                                                         Bas_[cir_buf_count_],
@@ -471,8 +465,6 @@ namespace lio {
 		                                                                         estimator_config_.pim_config));
 		
 		all_laser_transforms_.push(make_pair(header.stamp.toSec(), laser_transform));
-		
-		
 		
 		// TODO: check extrinsic parameter estimation
 		
@@ -544,6 +536,7 @@ namespace lio {
 							if (extrinsic_stage_ == 2) {
 								// 如果现在的模式是  没有初始化，就开始运动
 								// TODO: move before initialization
+								// 这个transform_lb_是外部先给定一个transform，然后利用前面的lidar transform和IMu预积分优化这个transform
 								bool extrinsic_result = ImuInitializer::EstimateExtrinsicRotation(all_laser_transforms_, transform_lb_);
 								LOG(INFO) << ">>>>>>> extrinsic calibration"
 								          << (extrinsic_result ? " successful"
@@ -589,6 +582,7 @@ namespace lio {
 								}
 							}
 							// Rs_和Ps_都是window_size + 1大小
+							// IMPORTANT 对比单纯用map得到的lidar的位姿和IMU预积分得到的位姿的差别
 							for (size_t i = 0; i < estimator_config_.window_size + 1; ++i) {
 								Twist<double> transform_lb = transform_lb_.cast<double>();
 								// 利用上面initialization获得的imu到lidar的变换和Rs_[] Ps_[]获得当前lidar的T
@@ -610,7 +604,7 @@ namespace lio {
 								Transform trans_bi = trans_li * transform_lb_;
 								DLOG(INFO) << "TEST " << i << ": " << trans_bi.pos.transpose();
 							}
-							// 输出一下滑窗内所有帧的Lidar的变换
+							// 优化之后，再次利用IMU预积分结果得到一次Lidar的位姿，可以和优化之前对比一下
 							for (size_t i = 0; i < estimator_config_.window_size + 1; ++i) {
 								Twist<double> transform_lb = transform_lb_.cast<double>();
 								
@@ -642,9 +636,7 @@ namespace lio {
 						
 						++cir_buf_count_;
 					}
-					
 					opt_point_coeff_mask_.last() = true;
-					
 					break;
 				}
 				case INITED: {
@@ -801,7 +793,6 @@ namespace lio {
 				}
 			}
 		}
-		
 		wi_trans_.setRotation(tf::Quaternion{Q_WI_.x(), Q_WI_.y(), Q_WI_.z(), Q_WI_.w()});
 		wi_trans_.stamp_ = header.stamp;
 		tf_broadcaster_est_.sendTransform(wi_trans_);
@@ -1485,7 +1476,6 @@ namespace lio {
 					tmp_cloud_corner += transformed_cloud_corner;
 #endif
 				}
-				
 				*(surf_stack_[pivot_idx]) = tmp_cloud_surf;
 
 #ifdef USE_CORNER
@@ -1534,7 +1524,6 @@ namespace lio {
 				DLOG(INFO) << "transform_linearized_i: " << transform_linearized_i;
 #endif
 				//endregion
-				
 				
 				// NOTE: exclude the latest one
 				if (i != estimator_config_.window_size) {
@@ -1590,7 +1579,6 @@ namespace lio {
 #endif
 		
 		}
-		
 		ROS_DEBUG_STREAM("t_build_map cost: " << t_build_map.Toc() << " ms");
 		DLOG(INFO) << "t_build_map cost: " << t_build_map.Toc() << " ms";
 		
@@ -1670,7 +1658,6 @@ namespace lio {
 			} else {
 				// NOTE: empty features
 			}
-			
 			//region Visualization
 			// 可视化需要，暂时不看
 			std::vector<Eigen::Vector4d,
@@ -1713,7 +1700,6 @@ namespace lio {
 			
 			ROS_DEBUG_STREAM("feature cost: " << t_features.Toc() << " ms");
 		}
-		
 	}
 	
 	void Estimator::SolveOptimization() {
@@ -1723,7 +1709,7 @@ namespace lio {
 			           << estimator_config_.window_size;
 			return;
 		}
-		
+		// 优化计时
 		TicToc tic_toc_opt;
 		
 		bool turn_off = true;
@@ -1751,15 +1737,15 @@ namespace lio {
 				Rs_[cir_buf_count_] = Rs_[cir_buf_count_ - 1] * incre.rot;
 			}
 			// all_laser_transforms_保存的是通过map匹配后高精度的transform    此时cir_buf_count_等于windows size
-			// TODO 这样的话   IMU预积分还有什么用？？
 			Twist<double> transform_lb = transform_lb_.cast<double>();
 			// 获取p的下标
 			int pivot_idx = int(estimator_config_.window_size - estimator_config_.opt_window_size);
-			// 获取IMU预积分获取的PVR
+			// 获取pivot frame的IMU预积分结果
 			Eigen::Vector3d Ps_pivot = Ps_[pivot_idx];
 			Eigen::Vector3d Vs_pivot = Vs_[pivot_idx];
 			Eigen::Matrix3d Rs_pivot = Rs_[pivot_idx];
-			
+			// 得到对应时刻Lidar的位姿
+			// IMPORTANT IMU位姿变换到Lidar
 			Quaterniond rot_pivot(Rs_pivot * transform_lb.rot.inverse());
 			Eigen::Vector3d pos_pivot = Ps_pivot - rot_pivot * transform_lb.pos;
 			
@@ -1775,7 +1761,6 @@ namespace lio {
 				Quaterniond rot_li(Rs_[opt_i] * transform_lb.rot.inverse());
 				Eigen::Vector3d pos_li = Ps_[opt_i] - rot_li * transform_lb.pos;
 				Twist<double> transform_li = Twist<double>(rot_li, pos_li);
-
 /*				 DLOG(INFO) << "Ps_[" << opt_i << "] bef: " << Ps_[opt_i].transpose();
 				 DLOG(INFO) << "Vs_[" << opt_i << "]: bef " << Vs_[opt_i].transpose();
 
@@ -1786,7 +1771,6 @@ namespace lio {
 
 				 DLOG(INFO) << "transform_lb_: " << transform_lb_;
 				 DLOG(INFO) << "gravity in world: " << g_vec_.transpose();*/
-				
 				// 相对应的把imu的变换也存储进去
 				Twist<double> transform_bi = Twist<double>(Eigen::Quaterniond(Rs_[opt_i]), Ps_[opt_i]);
 				imu_poses.push_back(transform_bi.cast<float>());
@@ -1905,7 +1889,6 @@ namespace lio {
 								                         para_pose_[j],
 								                         para_speed_bias_[j]
 								);
-				
 				res_ids_pim.push_back(res_id);
 			}
 		}
@@ -1951,8 +1934,7 @@ namespace lio {
 					} else {
 						PivotPointPlaneFactor *f = new PivotPointPlaneFactor(p_eigen,
 						                                                     coeff_eigen);
-						ceres::internal::ResidualBlock *res_id =
-										problem.AddResidualBlock(f,
+						ceres::internal::ResidualBlock *res_id = problem.AddResidualBlock(f,
 										                         loss_function,
 //                                     NULL,
                                              para_pose_[0],
@@ -2002,7 +1984,6 @@ namespace lio {
 /*		options.use_explicit_schur_complement = true;
 		options.minimizer_progress_to_stdout = true;
 		options.use_nonmonotonic_steps = true;*/
-		
 		options.max_solver_time_in_seconds = 0.10;
 		
 		// TODO =======残差 优化前   不知道是什么意思
@@ -2064,9 +2045,7 @@ namespace lio {
 						res_ids_marg.clear();
 					}
 				}
-				
 			}
-			
 		}
 		//endregion
 		
@@ -2123,7 +2102,6 @@ namespace lio {
       last_marginalization_info = nullptr;
     }
   }*/
-		
 		//region Constraint Marginalization
 		// turn_off只有在“残差”小于1e3的时候才会变成false   默认是true
 		if (estimator_config_.marginalization_factor && !turn_off) {
@@ -2237,7 +2215,6 @@ namespace lio {
       if (marginalization_info0)
         delete marginalization_info0;
     }*/
-			
 			VectorToDouble();
 			
 			if (last_marginalization_info) {
@@ -2300,9 +2277,7 @@ namespace lio {
 						                                                                                para_ex_pose_},
 						                                                               vector<int>{0});
 						marginalization_info->AddResidualBlockInfo(residual_block_info);
-						
 					}
-					
 				}
 			}
 			
@@ -2334,7 +2309,6 @@ namespace lio {
 			
 			DLOG(INFO) << "whole marginalization costs: " << t_whole_marginalization.Toc();
 			ROS_DEBUG_STREAM("whole marginalization costs: " << t_whole_marginalization.Toc() << " ms");
-
 /*    {
       std::unordered_map<long, double *> addr_shift2;
       for (int i = 1; i < estimator_config_.opt_window_size + 1; ++i) {
@@ -2360,7 +2334,6 @@ namespace lio {
       problem.Evaluate(e_option, &aft_cost_marg, NULL, NULL, NULL);
       DLOG(INFO) << "aft_cost_marg: " << aft_cost_marg;
     }*/
-			
 		}
 		//endregion
 		
@@ -2397,7 +2370,6 @@ namespace lio {
       DLOG(INFO) << "velocity: " << Vs_.last().norm();
       DLOG(INFO) << "transform_lb_: " << transform_lb_;
 				 DLOG(INFO) << "gravity in world: " << g_vec_.transpose();*/
-				
 				Twist<double> transform_bi = Twist<double>(Eigen::Quaterniond(Rs_[opt_i]), Ps_[opt_i]);
 				imu_poses.push_back(transform_bi.cast<float>());
 				lidar_poses.push_back(transform_li.cast<float>());
@@ -2507,7 +2479,6 @@ namespace lio {
                         *tmp_points_ptr,
                         Headers_.last().stamp,
                         "/laser_predict");*/
-					
 					TransformToEnd(full_stack_.last(), transform_es_, 10, true);
 					PublishCloudMsg(pub_predict_corrected_full_points_,
 					                *(full_stack_.last()),
@@ -2524,12 +2495,9 @@ namespace lio {
 				laser_predict_trans_.stamp_ = Headers_.last().stamp;
 				tf_broadcaster_est_.sendTransform(laser_predict_trans_);
 			}
-			
 		}
-		
 		DLOG(INFO) << "tic_toc_opt: " << tic_toc_opt.Toc() << " ms";
 		ROS_DEBUG_STREAM("tic_toc_opt: " << tic_toc_opt.Toc() << " ms");
-		
 	}
 	
 	void Estimator::VectorToDouble() {
@@ -2674,7 +2642,6 @@ namespace lio {
 	
 	void Estimator::SlideWindow() {
 		// NOTE: this function is only for the states and the local map
-		
 		{
 			// 下面这个数值是在BuildLocalMap函数里面的，因为之前没有初始化，没有进入BuildLocalMap函数里面，所以这个数值始终都是false
 			if (init_local_map_) {
@@ -2756,7 +2723,6 @@ namespace lio {
 			*(corner_stack_[i]) = filtered_corner_points;
 #endif
 			}
-			
 		}
 
 //region fix the map
@@ -2772,8 +2738,10 @@ namespace lio {
 		linear_acceleration_buf_.push(vector<Vector3d>());
 		angular_velocity_buf_.push(vector<Vector3d>());
 
-//  Headers_.push(Headers_[cir_buf_count_]);
+		//  Headers_.push(Headers_[cir_buf_count_]);
 		// TODO 为什么这里要把 cir_buf_count_对应的数值再push一次？（如果从初始化开始算起的话，就是把最旧的那个数,index=0再压缩到最新的位置上。以此类推）
+		// =====回答：最开始，Rs里面只有一个数值，然后在ProcessIMU中利用预积分更新了，这里再一次push进来，当做下一次预积分的初始状态
+		// 然后继续进行ProcessIMU中的预积分，再次更新，直到满足一个滑窗，每个数值对应一个时刻的状态
 		Ps_.push(Ps_[cir_buf_count_]);
 		Vs_.push(Vs_[cir_buf_count_]);
 		Rs_.push(Rs_[cir_buf_count_]);
@@ -2784,11 +2752,8 @@ namespace lio {
                                                                            Bas_[cir_buf_count_],
                                                                            Bgs_[cir_buf_count_],
                                                                            estimator_config_.pim_config)));
-
   all_laser_transforms_.push(all_laser_transforms_[cir_buf_count_]);*/
-
 // TODO: slide new lidar points
-	
 	}
 	
 	// NO.1

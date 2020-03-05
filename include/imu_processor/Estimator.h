@@ -180,7 +180,7 @@ class Estimator : public MeasurementManager, public PointMapping {
   EstimatorStageFlag stage_flag_ = NOT_INITED;
   EstimatorConfig estimator_config_;
 
-  bool first_imu_ = false;
+  bool first_imu_ = true;
   double initial_time_ = -1;
 
   size_t cir_buf_count_ = 0;
@@ -188,7 +188,7 @@ class Estimator : public MeasurementManager, public PointMapping {
 
   Vector3d acc_last_, gyr_last_;
   Vector3d g_vec_;
-
+	// 指针 IntegrationBase类型
   shared_ptr<IntegrationBase> tmp_pre_integration_;
 
   //  map<double, LaserFrame> all_laser_frames;
