@@ -579,14 +579,12 @@ void PointProcessor::PrepareRing(const PointCloud &scan) {
     if (diff_next2 > 0.0002 * dis2 && diff_prev2 > 0.0002 * dis2) {
       scan_ring_mask_[i - 0] = 1;
     }
-
   }
 }
 
 void PointProcessor::PrepareSubregion(const PointCloud &scan, const size_t idx_start, const size_t idx_end) {
-
-//  cout << ">>>>>>> " << idx_ring << ", " << idx_start << ", " << idx_end << " <<<<<<<" << endl;
-//  const PointCloud &scan = laser_scans[idx_ring];
+/*  cout << ">>>>>>> " << idx_ring << ", " << idx_start << ", " << idx_end << " <<<<<<<" << endl;
+  const PointCloud &scan = laser_scans[idx_ring];*/
   size_t region_size = idx_end - idx_start + 1;
   curvature_idx_pairs_.resize(region_size);
   subregion_labels_.resize(region_size);
@@ -608,20 +606,17 @@ void PointProcessor::PrepareSubregion(const PointCloud &scan, const size_t idx_s
     float curvature = diff_x * diff_x + diff_y * diff_y + diff_z * diff_z;
     pair<float, size_t> curvature_idx_(curvature, i);
     curvature_idx_pairs_[in_region_idx] = curvature_idx_;
-//    _regionCurvature[regionIdx] = diffX * diffX + diffY * diffY + diffZ * diffZ;
-//    _regionSortIndices[regionIdx] = i;
+/*    _regionCurvature[regionIdx] = diffX * diffX + diffY * diffY + diffZ * diffZ;
+    _regionSortIndices[regionIdx] = i;*/
   }
 
   sort(curvature_idx_pairs_.begin(), curvature_idx_pairs_.end());
-
-//  for (const auto &pair : curvature_idx_pairs_) {
-//    cout << pair.first << " " << pair.second << endl;
-//  }
-
+/*  for (const auto &pair : curvature_idx_pairs_) {
+    cout << pair.first << " " << pair.second << endl;
+  }*/
 }
 
 void PointProcessor::MaskPickedInRing(const PointCloud &scan, const size_t in_scan_idx) {
-
   // const PointCloud &scan = laser_scans[idx_ring];
   scan_ring_mask_[in_scan_idx] = 1;
 
@@ -630,7 +625,6 @@ void PointProcessor::MaskPickedInRing(const PointCloud &scan, const size_t in_sc
     if (CalcSquaredDiff(scan[in_scan_idx + i], scan[in_scan_idx + i - 1]) > 0.05) {
       break;
     }
-
     scan_ring_mask_[in_scan_idx + i] = 1;
   }
 
@@ -638,13 +632,11 @@ void PointProcessor::MaskPickedInRing(const PointCloud &scan, const size_t in_sc
     if (CalcSquaredDiff(scan[in_scan_idx - i], scan[in_scan_idx - i + 1]) > 0.05) {
       break;
     }
-
     scan_ring_mask_[in_scan_idx - i] = 1;
   }
 }
 
 void PointProcessor::ExtractFeaturePoints() {
-
   tic_toc_.Tic();
 
   ///< i is #ring, j is #subregion, k is # in region
@@ -743,12 +735,9 @@ void PointProcessor::ExtractFeaturePoints() {
     if (surf_points_less_flat_ptr->empty()) {
       continue;
     } else {
-
       down_size_filter.filter(surf_points_less_flat_downsampled);
       surface_points_less_flat_ += surf_points_less_flat_downsampled;
-
     }
-
   } /// i
 
   size_t less_flat_cloud_size = surface_points_less_flat_.size();
@@ -782,7 +771,6 @@ void PointProcessor::ExtractFeaturePoints() {
 } // ExtractFeaturePoints
 
 void PointProcessor::PublishResults() {
-
   if (!is_ros_setup_) {
     DLOG(WARNING) << "ros is not set up, and no results will be published";
     return;
@@ -795,5 +783,4 @@ void PointProcessor::PublishResults() {
   PublishCloudMsg(pub_surf_points_flat_, surface_points_flat_, sweep_start_, config_.capture_frame_id);
   PublishCloudMsg(pub_surf_points_less_flat_, surface_points_less_flat_, sweep_start_, config_.capture_frame_id);
 }
-
 } // namespace lio
