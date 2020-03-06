@@ -187,9 +187,12 @@ int main(int argc, char **argv) {
 
   nh_ptr->param("config_file", config_file, std::string(
   				"/home/fansa/lio-mapping-origin/src/lio-mapping/config/indoor_test_config.yaml"));
-	// 输出到控制台
-	FLAGS_alsologtostderr = true;
 
+	FLAGS_logtostderr = true; // 设置日志消息是否转到标准输出而不是日志文件
+	
+	FLAGS_alsologtostderr = true; // 设置日志消息除了日志文件之外是否去标准输出
+	
+	FLAGS_colorlogtostderr = true; // 设置记录到标准输出的颜色消息（如果终端支持）
   Run();
 
   return 0;

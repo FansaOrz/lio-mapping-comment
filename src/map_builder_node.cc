@@ -53,27 +53,26 @@ using namespace mathutils;
 static ros::NodeHandlePtr nh_ptr;
 
 int main(int argc, char **argv) {
-
-  google::InitGoogleLogging(argv[0]);
-  FLAGS_alsologtostderr = true;
-
-  ros::init(argc, argv, "map_builder");
-
-  ros::NodeHandle nh("~");
-
-  MapBuilderConfig config;
-  config.map_filter_size = 0.2;
-
-  MapBuilder mapper(config);
-  mapper.SetupRos(nh);
-  mapper.Reset();
-
-  ros::Rate r(100);
-  while (ros::ok()) {
-    mapper.ProcessMap();
-    ros::spinOnce();
-    r.sleep();
-  }
-
-  return 0;
+	
+	google::InitGoogleLogging(argv[0]);
+	FLAGS_alsologtostderr = true;
+	
+	ros::init(argc, argv, "map_builder");
+	
+	ros::NodeHandle nh("~");
+	
+	MapBuilderConfig config;
+	config.map_filter_size = 0.2;
+	
+	MapBuilder mapper(config);
+	mapper.SetupRos(nh);
+	mapper.Reset();
+	
+	ros::Rate r(100);
+	while (ros::ok()) {
+		mapper.ProcessMap();
+		ros::spinOnce();
+		r.sleep();
+	}
+	return 0;
 }

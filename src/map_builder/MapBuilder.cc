@@ -116,15 +116,17 @@ void MapBuilder::SetupRos(ros::NodeHandle &nh) {
 //  pub_diff_odometry_ = nh.advertise<nav_msgs::Odometry>("/laser_odom_to_last", 5);
 
   // subscribe to scan registration topics
+  // 外部的launch文件将下面这4个topic remap了
+  // topic  :::   /local/corner_points
   sub_laser_cloud_corner_last_ = nh.subscribe<sensor_msgs::PointCloud2>
       ("/laser_cloud_corner_last", 2, &PointMapping::LaserCloudCornerLastHandler, (PointMapping *) this);
-
+	// topic  :::  /local/surf_points
   sub_laser_cloud_surf_last_ = nh.subscribe<sensor_msgs::PointCloud2>
       ("/laser_cloud_surf_last", 2, &PointMapping::LaserCloudSurfLastHandler, (PointMapping *) this);
-
+	// topic  :::  /local/full_points
   sub_laser_full_cloud_ = nh.subscribe<sensor_msgs::PointCloud2>
       ("/full_odom_cloud", 2, &PointMapping::LaserFullCloudHandler, (PointMapping *) this);
-
+	// topic  :::  /local_laser_odom
   sub_laser_odometry_ = nh.subscribe<nav_msgs::Odometry>
       ("/laser_odom_to_init", 2, &PointMapping::LaserOdometryHandler, (PointMapping *) this);
 
@@ -142,7 +144,7 @@ void MapBuilder::SetupRos(ros::NodeHandle &nh) {
 void MapBuilder::PublishMapBuilderResults() {
 
   if (!is_ros_setup_) {
-    DLOG(WARNING) << "ros is not set up, and no results will be published";
+    ROS_WARN("ros is not set up, and no results will be published");
     return;
   }
 
@@ -199,12 +201,12 @@ void MapBuilder::PublishMapBuilderResults() {
   odom_aft_mapped_.pose.pose.position.y = transform_aft_mapped_.pos.y();
   odom_aft_mapped_.pose.pose.position.z = transform_aft_mapped_.pos.z();
 
-//  odom_aft_mapped_.twist.twist.angular.x = transform_bef_mapped_.rot.x();
-//  odom_aft_mapped_.twist.twist.angular.y = transform_bef_mapped_.rot.y();
-//  odom_aft_mapped_.twist.twist.angular.z = transform_bef_mapped_.rot.z();
-//  odom_aft_mapped_.twist.twist.linear.x = transform_bef_mapped_.pos.x();
-//  odom_aft_mapped_.twist.twist.linear.y = transform_bef_mapped_.pos.y();
-//  odom_aft_mapped_.twist.twist.linear.z = transform_bef_mapped_.pos.z();
+/*  odom_aft_mapped_.twist.twist.angular.x = transform_bef_mapped_.rot.x();
+  odom_aft_mapped_.twist.twist.angular.y = transform_bef_mapped_.rot.y();
+  odom_aft_mapped_.twist.twist.angular.z = transform_bef_mapped_.rot.z();
+  odom_aft_mapped_.twist.twist.linear.x = transform_bef_mapped_.pos.x();
+  odom_aft_mapped_.twist.twist.linear.y = transform_bef_mapped_.pos.y();
+  odom_aft_mapped_.twist.twist.linear.z = transform_bef_mapped_.pos.z();*/
   pub_odom_aft_mapped_.publish(odom_aft_mapped_);
 
   aft_mapped_trans_.stamp_ = time_laser_odometry_;
@@ -245,7 +247,7 @@ void MapBuilder::ProcessMap() {
     Transform4DAssociateToMap();
   } else {
     TransformAssociateToMap();
-    DLOG(INFO) << "DISABLE 4D";
+    ROS_INFO("DISABLE 4D");
   }
 
 //  // NOTE: for debug
@@ -422,9 +424,9 @@ void MapBuilder::ProcessMap() {
   laser_cloud_valid_idx_.clear();
   laser_cloud_surround_idx_.clear();
 
-//  DLOG(INFO) << "center_after: " << center_cube_i << " " << center_cube_j << " " << center_cube_k;
-//  DLOG(INFO) << "laser_cloud_cen: " << laser_cloud_cen_length_ << " " << laser_cloud_cen_width_ << " "
-//            << laser_cloud_cen_height_;
+/*  DLOG(INFO) << "center_after: " << center_cube_i << " " << center_cube_j << " " << center_cube_k;
+  DLOG(INFO) << "laser_cloud_cen: " << laser_cloud_cen_length_ << " " << laser_cloud_cen_width_ << " "
+            << laser_cloud_cen_height_;*/
 
   for (int i = center_cube_i - 2; i <= center_cube_i + 2; ++i) {
     for (int j = center_cube_j - 2; j <= center_cube_j + 2; ++j) {
@@ -529,14 +531,14 @@ void MapBuilder::ProcessMap() {
       OptimizeMap();
     } else {
       OptimizeTransformTobeMapped();
-      DLOG(INFO) << "DISABLE 4D";
+      ROS_INFO("DISABLE 4D");
     }
   } else {
     if (enable_4d_) {
       Transform4DUpdate();
     } else {
       TransformUpdate();
-      DLOG(INFO) << "DISABLE 4D";
+	    ROS_INFO("DISABLE 4D");
     }
   }
   ++odom_count_;
@@ -614,9 +616,7 @@ void MapBuilder::ProcessMap() {
   // publish result
   // PublishResults();
   PublishMapBuilderResults();
-
-  DLOG(INFO) << "mapping: " << tic_toc_.Toc() << " ms";
-
+	ROS_DEBUG_STREAM("mapping: " << tic_toc_.Toc() << "ms");
 }
 
 void MapBuilder::OptimizeMap() {

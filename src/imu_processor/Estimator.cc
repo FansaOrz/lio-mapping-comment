@@ -2283,12 +2283,10 @@ namespace lio {
 			
 			TicToc t_pre_margin;
 			marginalization_info->PreMarginalize();
-			ROS_DEBUG("pre marginalization %f ms", t_pre_margin.Toc());
 			ROS_DEBUG_STREAM("pre marginalization: " << t_pre_margin.Toc() << " ms");
 			
 			TicToc t_margin;
 			marginalization_info->Marginalize();
-			ROS_DEBUG("marginalization %f ms", t_margin.Toc());
 			ROS_DEBUG_STREAM("marginalization: " << t_margin.Toc() << " ms");
 			
 			std::unordered_map<long, double *> addr_shift;
@@ -2307,7 +2305,6 @@ namespace lio {
 			last_marginalization_info = marginalization_info;
 			last_marginalization_parameter_blocks = parameter_blocks;
 			
-			DLOG(INFO) << "whole marginalization costs: " << t_whole_marginalization.Toc();
 			ROS_DEBUG_STREAM("whole marginalization costs: " << t_whole_marginalization.Toc() << " ms");
 /*    {
       std::unordered_map<long, double *> addr_shift2;
@@ -2479,15 +2476,16 @@ namespace lio {
                         *tmp_points_ptr,
                         Headers_.last().stamp,
                         "/laser_predict");*/
-					// TODO 这里是消除快速旋转产生的畸变的地方
-					// 2020.3.5
+					// IMPORTANT 这里是利用IMU预积分的效果消除运动畸变
+					// 第一次进行到这里的时候，transform_es_是单位值：transform_es_0 0 0 1（四元数） 0 0 0（位置）
+					// 这个话题只有RVIZ显示使用
+					ROS_DEBUG_STREAM("transform_es_" << transform_es_);
 					TransformToEnd(full_stack_.last(), transform_es_, 10, true);
 					PublishCloudMsg(pub_predict_corrected_full_points_,
 					                *(full_stack_.last()),
 					                Headers_.last().stamp,
 					                "/laser_predict");
 				}
-
 #ifdef USE_CORNER
 				PublishCloudMsg(pub_predict_corner_points_, *(corner_stack_.last()), Headers_.last().stamp, "/laser_predict");
 #endif
@@ -2498,7 +2496,6 @@ namespace lio {
 				tf_broadcaster_est_.sendTransform(laser_predict_trans_);
 			}
 		}
-		DLOG(INFO) << "tic_toc_opt: " << tic_toc_opt.Toc() << " ms";
 		ROS_DEBUG_STREAM("tic_toc_opt: " << tic_toc_opt.Toc() << " ms");
 	}
 	
@@ -2602,7 +2599,6 @@ namespace lio {
 				Ps_[idx] = rot_diff * trans_pivot_idx.pos + origin_P0;
 				Rs_[idx] = rot_diff * trans_pivot_idx.rot.normalized().toRotationMatrix();*/
 			}
-			
 		}
 		
 		int i, opt_i;
