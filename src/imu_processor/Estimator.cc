@@ -2541,7 +2541,6 @@ namespace lio {
 	
 	/*	将优化后的p的变换，应用在p之前的所有坐标点上，更新一下坐标系；同时，将p之后的优化的值更新在存储的vector*/
 	void Estimator::DoubleToVector() {
-
 // FIXME: do we need to optimize the first state?
 // WARNING: not just yaw angle rot_diff; if it is compared with global features, there should be no need for rot_diff
 
