@@ -60,7 +60,12 @@ namespace lio {
 	using namespace std;
 	using namespace mathutils;
 	using namespace geometryutils;
+	
+	
 	typedef Twist<float> Transform;
+	
+	
+	
 	typedef Sophus::SO3f SO3f;
 	typedef Sophus::SO3d SO3d;
 	typedef nav_msgs::OdometryConstPtr OdomMsgConstPtr;

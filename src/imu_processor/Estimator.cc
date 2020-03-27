@@ -1005,6 +1005,8 @@ namespace lio {
                                   const Transform &local_transform,
                                   vector<unique_ptr<Feature>> &features) {
 #else
+	// kdtree_surf_from_map以kd树形式存储的local map       local_surf_points_filtered_ptr_是滑窗中所有降采样之后的点云数据
+	// surf_stack是这一次的surf的点云    local_transform是这一次到p的变换（根据IMU的Rs（优化后）得出来的
 	void Estimator::CalculateFeatures(const pcl::KdTreeFLANN<PointT>::Ptr &kdtree_surf_from_map,
 	                                  const PointCloudPtr &local_surf_points_filtered_ptr,
 	                                  const PointCloudPtr &surf_stack,
@@ -1013,6 +1015,7 @@ namespace lio {
 #endif
 		
 		PointT point_sel, point_ori, point_proj, coeff1, coeff2;
+		// true
 		if (!estimator_config_.keep_features) {
 			features.clear();
 		}
@@ -1053,18 +1056,20 @@ namespace lio {
 		
 		for (int i = 0; i < surf_points_size; i++) {
 			point_ori = origin_surf_points->points[i];
-			// 变换到p坐标系下
+			// 将point_ori变换到p坐标系下
 			PointAssociateToMap(point_ori, point_sel, transform_to_local);
-			
-			int num_neighbors = 5;
+			// K临近搜索 K=5
+			int num_neighbors = 5; //K
 			kdtree_surf_from_map->nearestKSearch(point_sel, num_neighbors, point_search_idx, point_search_sq_dis);
-			
+			// 如果最远的也在阈值内
 			if (point_search_sq_dis[num_neighbors - 1] < min_match_sq_dis_) {
+				// 记下找到的5个最邻近的点的xyz
 				for (int j = 0; j < num_neighbors; j++) {
 					mat_A0(j, 0) = local_surf_points_filtered_ptr->points[point_search_idx[j]].x;
 					mat_A0(j, 1) = local_surf_points_filtered_ptr->points[point_search_idx[j]].y;
 					mat_A0(j, 2) = local_surf_points_filtered_ptr->points[point_search_idx[j]].z;
 				}
+				// 方程为：mat_A0*matX0 = mat_B0
 				mat_X0 = mat_A0.colPivHouseholderQr().solve(mat_B0);
 				
 				float pa = mat_X0(0, 0);
@@ -1079,7 +1084,6 @@ namespace lio {
 				pd /= ps;
 				
 				// NOTE: plane as (x y z)*w+1 = 0
-				
 				bool planeValid = true;
 				for (int j = 0; j < num_neighbors; j++) {
 					if (fabs(pa * local_surf_points_filtered_ptr->points[point_search_idx[j]].x +
@@ -1128,6 +1132,7 @@ namespace lio {
 					if (s > 0.1 && is_in_laser_fov) {
 						unique_ptr<PointPlaneFeature> feature = std::make_unique<PointPlaneFeature>();
 						feature->score = s;
+						// point_ori是原坐标系下的点
 						feature->point = Eigen::Vector3d{point_ori.x, point_ori.y, point_ori.z};
 						feature->coeffs = Eigen::Vector4d{coeff1.x, coeff1.y, coeff1.z, coeff1.intensity};
 						features.push_back(std::move(feature));
@@ -1286,7 +1291,7 @@ namespace lio {
 	                                   Transform &local_transform,
 	                                   vector<unique_ptr<Feature>> &features) {
 #endif
-		
+		// 退化标志位
 		bool is_degenerate = false;
 		// 开始迭代优化？
 		for (size_t iter_count = 0; iter_count < num_max_iterations_; ++iter_count) {
@@ -1297,6 +1302,7 @@ namespace lio {
 												local_transform, features);
 #else
 			// 先和之前的一样，获取一次最后一帧的有效surf点
+			// TODO 查看每次for循环一次，什么值更新了
 			CalculateFeatures(kdtree_surf_from_map, local_surf_points_filtered_ptr, surf_stack,
 			                  local_transform, features);
 #endif
@@ -1313,7 +1319,7 @@ namespace lio {
 			PointT point_sel, point_ori, coeff;
 			
 			SO3 R_SO3(local_transform.rot); /// SO3
-			
+			// 遍历features
 			for (int i = 0; i < laser_cloud_sel_size; i++) {
 				PointPlaneFeature feature_i;
 				features[i]->GetFeature(&feature_i);
@@ -1346,6 +1352,7 @@ namespace lio {
 			mat_At = mat_A.transpose();
 			matAtA = mat_At * mat_A;
 			mat_AtB = mat_At * mat_B;
+			// AtA * x = AtB
 			mat_X = matAtA.colPivHouseholderQr().solve(mat_AtB);
 			
 			if (iter_count == 0) {
@@ -1427,7 +1434,7 @@ namespace lio {
 		vector<Transform> local_transforms;
 		int pivot_idx = estimator_config_.window_size - estimator_config_.opt_window_size;
 		
-		// 同样在获取一遍lidar在p时刻的坐标变换
+		// region 根据优化后的IMURs和Ps以及外参数，得到Lidar在pivot的位姿，T_{L_{p}}
 		Twist<double> transform_lb = transform_lb_.cast<double>();
 		
 		Eigen::Vector3d Ps_pivot = Ps_[pivot_idx];
@@ -1437,7 +1444,7 @@ namespace lio {
 		Eigen::Vector3d pos_pivot = Ps_pivot - rot_pivot * transform_lb.pos;
 		
 		Twist<double> transform_pivot = Twist<double>(rot_pivot, pos_pivot);
-		
+		//endregion
 		{
 			//region fix the map
 #ifdef FIX_MAP
@@ -1451,24 +1458,27 @@ namespace lio {
 #endif
 			//endregion
 			
-			// 如果是第一次进入这个函数，就先建立一个loacl map，将p前面的所有帧建立一个localmap
+			// 如果是第一次进入这个函数，就先建立一个loacl map，将p和p前面的所有帧建立一个localmap
 			if (!init_local_map_) {
 				PointCloud transformed_cloud_surf, tmp_cloud_surf;
 
 #ifdef USE_CORNER
 				PointCloud transformed_cloud_corner, tmp_cloud_corner;
 #endif
-				
+				// 建立local map
 				for (int i = 0; i <= pivot_idx; ++i) {
 					Eigen::Vector3d Ps_i = Ps_[i];
 					Eigen::Matrix3d Rs_i = Rs_[i];
 					
 					Quaterniond rot_li(Rs_i * transform_lb.rot.inverse());
 					Eigen::Vector3d pos_li = Ps_i - rot_li * transform_lb.pos;
-					
+					// 由IMU预测的（这个时候Ps和Rs应该都是上一次优化过的了）T_{B_{i}}，通过外参T_{B}^{L}转换成T_{L_{i}}。
 					Twist<double> transform_li = Twist<double>(rot_li, pos_li);
+					// 得到T_{L_{i}}^{p}
 					Eigen::Affine3f transform_pivot_i = (transform_pivot.inverse() * transform_li).cast<float>().transform();
+					// 变换pcl到p坐标系下
 					pcl::transformPointCloud(*(surf_stack_[i]), transformed_cloud_surf, transform_pivot_i);
+					// 加到local map里面
 					tmp_cloud_surf += transformed_cloud_surf;
 
 #ifdef USE_CORNER
@@ -1476,19 +1486,18 @@ namespace lio {
 					tmp_cloud_corner += transformed_cloud_corner;
 #endif
 				}
+				// 把p和p之前的都变到p坐标系下，
 				*(surf_stack_[pivot_idx]) = tmp_cloud_surf;
 
 #ifdef USE_CORNER
 				*(corner_stack_[pivot_idx]) = tmp_cloud_corner;
 #endif
-				
 				init_local_map_ = true;
 			}
 			
-			// 遍历滑动窗口
+			// 如果之前localmap已经初始化了，遍历滑动窗口
 			for (int i = 0; i < estimator_config_.window_size + 1; ++i) {
-				
-				// 获取i时刻lidar的坐标变换
+				// region 利用IMU优化后的 Ps和Rs，获取i时刻lidar到p的坐标变换 T_{L_{i}}^{p}
 				Eigen::Vector3d Ps_i = Ps_[i];
 				Eigen::Matrix3d Rs_i = Rs_[i];
 				
@@ -1496,14 +1505,18 @@ namespace lio {
 				Eigen::Vector3d pos_li = Ps_i - rot_li * transform_lb.pos;
 				
 				Twist<double> transform_li = Twist<double>(rot_li, pos_li);
+
 				// 获取由i到p的坐标变换
 				Eigen::Affine3f transform_pivot_i = (transform_pivot.inverse() * transform_li).cast<float>().transform();
+				// endregion 获取i时刻lidar的坐标变换 T_{L_{i}}
 				
 				Transform local_transform = transform_pivot_i;
-				// local_transforms存储滑窗内部所有点到p的变换
+				// local_transforms存储滑窗内部所有帧到p的变换
 				local_transforms.push_back(local_transform);
 				
-				// p前面几帧的就直接获取变换就可以
+				// TODO 初始化之后，pivot前面的是在哪里获取的？
+				// 猜测，应该是在边缘化的时候，将localmap转移到最新的pivot上去了
+				// TODO 待验证
 				if (i < pivot_idx) {
 					continue;
 				}
@@ -1525,10 +1538,10 @@ namespace lio {
 #endif
 				//endregion
 				
-				// NOTE: exclude the latest one
+				// NOTE: 除去最后一帧
 				if (i != estimator_config_.window_size) {
 					if (i == pivot_idx) {
-						// local_surf_points_ptr_存储从p开始到后面的所有的surf点云数据
+						// 初始化的时候，surf_stack_[pivot]存储着o到p建立的local map
 						*local_surf_points_ptr_ += *(surf_stack_[i]);
 /*          down_size_filter_surf_.setInputCloud(local_surf_points_ptr_);
           down_size_filter_surf_.filter(transformed_cloud_surf);
@@ -1553,8 +1566,8 @@ namespace lio {
 #endif
 					//endregion
 					// 把属于第几时刻存储在变换后的surf的intensity里面
-					for (int p_idx = 0; p_idx < transformed_cloud_surf.size(); ++p_idx) {
-						transformed_cloud_surf[p_idx].intensity = i;
+					for (auto & p_idx : transformed_cloud_surf) {
+						p_idx.intensity = i;
 					}
 					*local_surf_points_ptr_ += transformed_cloud_surf;
 #ifdef USE_CORNER
@@ -1601,26 +1614,27 @@ namespace lio {
 		kdtree_corner_from_map->setInputCloud(local_corner_points_filtered_ptr_);
 #endif
 		
-		// 再次遍历滑窗
+		// 论文中的 Relative Lidar Measurements，计算的结果保存在features里面，用于非线性优化
 		for (int idx = 0; idx < estimator_config_.window_size + 1; ++idx) {
-			
 			FeaturePerFrame feature_per_frame;
 			vector<unique_ptr<Feature>> features;
-//    vector<unique_ptr<Feature>> &features = feature_per_frame.features;
 			
 			TicToc t_features;
-			
+			// 对于P+1到i，寻找Relative Lidar Measurements
 			if (idx > pivot_idx) {
 				// 只要不是最后一个
-				if (idx != estimator_config_.window_size || !estimator_config_.imu_factor) {
+				if (idx != estimator_config_.window_size) {
 #ifdef USE_CORNER
 					CalculateFeatures(kdtree_surf_from_map, local_surf_points_filtered_ptr_, surf_stack_[idx],
 														kdtree_corner_from_map, local_corner_points_filtered_ptr_, corner_stack_[idx],
 														local_transforms[idx], features);
 #else
-					// kd树保存p及p之后的所有降采样之后的点云数据       local_surf_points_filtered_ptr_是p及p之后的所有降采样之后的点云数据
-					// surf_stack_[idx]是这一次的surf的点云    local_transforms[idx]是这一次到p的变换
+					// ==参数说明==
+					// 以kd树形式存储的local map       local_surf_points_filtered_ptr_是滑窗中所有降采样之后的点云数据
+					// surf_stack_[idx]是这一次的surf的点云    local_transforms[idx]是这一次到p的变换（根据IMU的Rs（优化后）得出来的
 					// 获取当前帧点云的所有有效的surf特征点
+					// ==函数说明==
+					// 在surf_stack_[idx]中寻找有效的平面特征点，并保存在features里面。（有效：在local map里面有与之对应的plane特征，而且距离也在阈值以内）
 					CalculateFeatures(kdtree_surf_from_map, local_surf_points_filtered_ptr_, surf_stack_[idx],
 					                  local_transforms[idx], features);
 #endif
@@ -1633,7 +1647,7 @@ namespace lio {
 														 kdtree_corner_from_map, local_corner_points_filtered_ptr_, corner_stack_[idx],
 														 local_transforms[idx], features);
 #else
-					// TODO 为什么只优化滑窗最后一帧，而且是使用的p到最后的未优化的点云数据？   有什么作用？
+					// 计算最新的一帧（也就是j）相对于p的T，存储在local_transforms里面
 					CalculateLaserOdom(kdtree_surf_from_map, local_surf_points_filtered_ptr_, surf_stack_[idx],
 					                   local_transforms[idx], features);
 #endif
@@ -1692,7 +1706,7 @@ namespace lio {
 				}
 			}
 			//endregion
-			// TODO 对于p之前的所有点云数据，是不是他们的feature都是空的？？？
+			// Relative Lidar Measurements只寻找p+1到i，对于o到p应该可以省略了，这部分可以简化
 			feature_per_frame.id = idx;
 //    feature_per_frame.features = std::move(features);
 			feature_per_frame.features.assign(make_move_iterator(features.begin()), make_move_iterator(features.end()));
@@ -1723,7 +1737,7 @@ namespace lio {
 		比如此时要使用CauchyLoss，只需要将nullptr换成new CauchyLoss(0.5)就行（0.5为参数）。*/
 		loss_function = new ceres::CauchyLoss(1.0);
 		
-		// NOTE: update from laser transform
+		// region 这部分没用，所有变量都是新生成的，后面优化要用到的数值这里都没有更改（默认是有IMU的）
 		if (estimator_config_.update_laser_imu) {
 			DLOG(INFO) << "======= bef opt =======";
 			// 这里做的事情是
@@ -1763,12 +1777,10 @@ namespace lio {
 				Twist<double> transform_li = Twist<double>(rot_li, pos_li);
 /*				 DLOG(INFO) << "Ps_[" << opt_i << "] bef: " << Ps_[opt_i].transpose();
 				 DLOG(INFO) << "Vs_[" << opt_i << "]: bef " << Vs_[opt_i].transpose();
-
 				DLOG(INFO) << "Vs_[" << opt_i << "]: " << Vs_[opt_i].transpose();
 				DLOG(INFO) << "Rs_[" << opt_i << "]: " << Eigen::Quaterniond(Rs_[opt_i]).coeffs().transpose();
 				DLOG(INFO) << "Bas_[" << opt_i << "]: " << Bas_[opt_i].transpose();
 				DLOG(INFO) << "Bgs_[" << opt_i << "]: " << Bgs_[opt_i].transpose();
-
 				 DLOG(INFO) << "transform_lb_: " << transform_lb_;
 				 DLOG(INFO) << "gravity in world: " << g_vec_.transpose();*/
 				// 相对应的把imu的变换也存储进去
@@ -1779,17 +1791,14 @@ namespace lio {
 			
 			//region Check for imu res
 /*    for (int i = 0; i < estimator_config_.window_size; ++i) {
-
       typedef Eigen::Matrix<double, 15, 15> M15;
       typedef Eigen::Matrix<double, 15, 1> V15;
       M15 sqrt_info =
           Eigen::LLT<M15>(pre_integrations_[i + 1]->covariance_.inverse()).matrixL().transpose();
-
       V15 res = (pre_integrations_[i + 1]->Evaluate(
           Ps_[i], Eigen::Quaterniond(Rs_[i]), Vs_[i], Bas_[i], Bgs_[i + 1],
           Ps_[i + 1], Eigen::Quaterniond(Rs_[i + 1]), Vs_[i + 1], Bas_[i + 1], Bgs_[i + 1]));
       // DLOG(INFO) << "sqrt_info: " << endl << sqrt_info;
-
       DLOG(INFO) << "imu res bef: " << res.transpose();
       // DLOG(INFO) << "weighted pre: " << (sqrt_info * res).transpose();
       // DLOG(INFO) << "weighted pre: " << (sqrt_info * res).squaredNorm();
@@ -1801,7 +1810,7 @@ namespace lio {
 			
 			DLOG(INFO) << "====================================";
 		}
-		
+		// endregion
 		vector<FeaturePerFrame> feature_frames;
 		
 		// 建立局部地图
@@ -1826,7 +1835,7 @@ namespace lio {
 			ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
 			problem.AddParameterBlock(para_ex_pose_, SIZE_POSE, local_parameterization);
 			para_ids.push_back(para_ex_pose_);
-			if (extrinsic_stage_ == 0 || estimator_config_.opt_extrinsic == false) {
+			if (extrinsic_stage_ == 0 || !estimator_config_.opt_extrinsic) {
 				DLOG(INFO) << "fix extrinsic param";
 				problem.SetParameterBlockConstant(para_ex_pose_);
 			} else {
@@ -1840,15 +1849,15 @@ namespace lio {
 		VectorToDouble();
 		
 		vector<ceres::internal::ResidualBlock *> res_ids_marg;
-		ceres::internal::ResidualBlock *res_id_marg = NULL;
+		ceres::internal::ResidualBlock *res_id_marg = nullptr;
 		// 添加优化问题误差项
-		// 边缘化
+		// region 边缘化
 		if (estimator_config_.marginalization_factor) {
 			if (last_marginalization_info) {
 				// construct new marginlization_factor
-				MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
+				auto *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
 				//向问题中添加误差项
-				res_id_marg = problem.AddResidualBlock(marginalization_factor, NULL,
+				res_id_marg = problem.AddResidualBlock(marginalization_factor, nullptr,
 				                                       last_marginalization_parameter_blocks);
 				res_ids_marg.push_back(res_id_marg);
 			}
@@ -1859,8 +1868,7 @@ namespace lio {
 		
 		if (estimator_config_.imu_factor) {
 			
-			for (int i = 0; i < estimator_config_.opt_window_size;
-			     ++i) {
+			for (int i = 0; i < estimator_config_.opt_window_size; ++i) {
 				int j = i + 1;
 				int opt_i = int(estimator_config_.window_size - estimator_config_.opt_window_size + i);
 				int opt_j = opt_i + 1;
@@ -1868,7 +1876,7 @@ namespace lio {
 					continue;
 				}
 				
-				ImuFactor *f = new ImuFactor(pre_integrations_[opt_j]);
+				auto *f = new ImuFactor(pre_integrations_[opt_j]);
 /*    {
       double **tmp_parameters = new double *[5];
       tmp_parameters[0] = para_pose_[i];
@@ -1883,7 +1891,7 @@ namespace lio {
 				// TODO: is it better to use g_vec_ as global parameter?
 				ceres::internal::ResidualBlock *res_id =
 								problem.AddResidualBlock(f,
-								                         NULL,
+								                         nullptr,
 								                         para_pose_[i],
 								                         para_speed_bias_[i],
 								                         para_pose_[j],
@@ -1894,7 +1902,9 @@ namespace lio {
 		}
 		
 		vector<ceres::internal::ResidualBlock *> res_ids_proj;
-		
+		// true
+		// 猜测：：：：：
+		// 这个变量是要不要添加点到面或者点到线的距离作为约束项
 		if (estimator_config_.point_distance_factor) {
 			// 遍历p到最后的点
 			for (int i = 0; i < estimator_config_.opt_window_size + 1; ++i) {
@@ -1907,17 +1917,15 @@ namespace lio {
 				
 				DLOG(INFO) << "features.size(): " << features.size();
 				
-				for (int j = 0; j < features.size(); ++j) {
+				for (auto & feature : features) {
 					PointPlaneFeature feature_j;
-					features[j]->GetFeature(&feature_j);
+					feature->GetFeature(&feature_j);
 					
 					const double &s = feature_j.score;
 					
 					const Eigen::Vector3d &p_eigen = feature_j.point;
 					const Eigen::Vector4d &coeff_eigen = feature_j.coeffs;
-					
-					Eigen::Matrix<double, 6, 6> info_mat_in;
-					
+					// 第一个，也就是p帧
 					if (i == 0) {
 /*          Eigen::Matrix<double, 6, 6> mat_in;
           PointDistanceFactor *f = new PointDistanceFactor(p_eigen,
@@ -1932,8 +1940,7 @@ namespace lio {
 
           res_ids_proj.push_back(res_id);*/
 					} else {
-						PivotPointPlaneFactor *f = new PivotPointPlaneFactor(p_eigen,
-						                                                     coeff_eigen);
+						auto *f = new PivotPointPlaneFactor(p_eigen, coeff_eigen);
 						ceres::internal::ResidualBlock *res_id = problem.AddResidualBlock(f,
 										                         loss_function,
 //                                     NULL,
@@ -1958,9 +1965,9 @@ namespace lio {
 		if (estimator_config_.prior_factor) {
 			{
 				Twist<double> trans_tmp = transform_lb_.cast<double>();
-				PriorFactor *f = new PriorFactor(trans_tmp.pos, trans_tmp.rot);
+				auto *f = new PriorFactor(trans_tmp.pos, trans_tmp.rot);
 				problem.AddResidualBlock(f,
-				                         NULL,
+				                         nullptr,
 				                         para_ex_pose_);
 /*				    {
 				      double **tmp_parameters = new double *[1];
@@ -1978,6 +1985,7 @@ namespace lio {
 		options.linear_solver_type = ceres::DENSE_SCHUR;
 /*  options.linear_solver_type = ceres::DENSE_QR;
   options.num_threads = 8;*/
+		// 信任域选择策略：高斯或者LM
 		options.trust_region_strategy_type = ceres::DOGLEG;
 //  options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
 		options.max_num_iterations = 10;
@@ -2108,7 +2116,7 @@ namespace lio {
 			
 			TicToc t_whole_marginalization;
 			
-			MarginalizationInfo *marginalization_info = new MarginalizationInfo();
+			auto *marginalization_info = new MarginalizationInfo();
 
 /*    {
       MarginalizationInfo *marginalization_info0 = new MarginalizationInfo();
@@ -2225,8 +2233,8 @@ namespace lio {
 						drop_set.push_back(i);
 				}
 				// construct new marginlization_factor
-				MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
-				ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(marginalization_factor, NULL,
+				auto *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
+				auto *residual_block_info = new ResidualBlockInfo(marginalization_factor, NULL,
 				                                                               last_marginalization_parameter_blocks,
 				                                                               drop_set);
 				
@@ -2236,8 +2244,8 @@ namespace lio {
 			if (estimator_config_.imu_factor) {
 				int pivot_idx = estimator_config_.window_size - estimator_config_.opt_window_size;
 				if (pre_integrations_[pivot_idx + 1]->sum_dt_ < 10.0) {
-					ImuFactor *imu_factor = new ImuFactor(pre_integrations_[pivot_idx + 1]);
-					ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,
+					auto *imu_factor = new ImuFactor(pre_integrations_[pivot_idx + 1]);
+					auto *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,
 					                                                               vector<double *>{para_pose_[0],
 					                                                                                para_speed_bias_[0],
 					                                                                                para_pose_[1],
@@ -2258,20 +2266,20 @@ namespace lio {
 
 //        DLOG(INFO) << "features.size(): " << features.size();
 					
-					for (int j = 0; j < features.size(); ++j) {
+					for (auto & feature : features) {
 						
 						PointPlaneFeature feature_j;
-						features[j]->GetFeature(&feature_j);
+						feature->GetFeature(&feature_j);
 						
 						const double &s = feature_j.score;
 						
 						const Eigen::Vector3d &p_eigen = feature_j.point;
 						const Eigen::Vector4d &coeff_eigen = feature_j.coeffs;
 						
-						PivotPointPlaneFactor *pivot_point_plane_factor = new PivotPointPlaneFactor(p_eigen,
+						auto *pivot_point_plane_factor = new PivotPointPlaneFactor(p_eigen,
 						                                                                            coeff_eigen);
 						
-						ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(pivot_point_plane_factor, loss_function,
+						auto *residual_block_info = new ResidualBlockInfo(pivot_point_plane_factor, loss_function,
 						                                                               vector<double *>{para_pose_[0],
 						                                                                                para_pose_[i],
 						                                                                                para_ex_pose_},
@@ -2332,8 +2340,9 @@ namespace lio {
       DLOG(INFO) << "aft_cost_marg: " << aft_cost_marg;
     }*/
 		}
-		//endregion
+		//endregion Constraint Marginalization
 		
+		// region 查看优化前和优化后的变化，没什么用
 		// NOTE: update to laser transform
 		if (estimator_config_.update_laser_imu) {
 			DLOG(INFO) << "======= aft opt =======";
@@ -2345,13 +2354,13 @@ namespace lio {
 			Quaterniond rot_l0(Rs_[opt_0] * transform_lb.rot.conjugate().normalized());
 			Eigen::Vector3d pos_l0 = Ps_[opt_0] - rot_l0 * transform_lb.pos;
 			opt_l0_transform = Twist<double>{rot_l0, pos_l0}.cast<float>(); // for updating the map
-			
+			// region 可视化，优化后的lidar和imu位姿
 			vector<Transform> imu_poses, lidar_poses;
 			
-			// 利用优化后的Rs和Ps更新一下p之后的所有的lidar和imu的位置
+			// 利用优化后的Rs和Ps获取一下窗口中所有的lidar和imu的位姿，用于可视化
 			for (int i = 0; i < estimator_config_.opt_window_size + 1; ++i) {
 				int opt_i = int(estimator_config_.window_size - estimator_config_.opt_window_size + i);
-				
+				// 这里的li代表第i时刻的lidar！！（i是for循环里面的）
 				Quaterniond rot_li(Rs_[opt_i] * transform_lb.rot.conjugate().normalized());
 				Eigen::Vector3d pos_li = Ps_[opt_i] - rot_li * transform_lb.pos;
 				Twist<double> transform_li = Twist<double>(rot_li, pos_li);
@@ -2370,7 +2379,6 @@ namespace lio {
 				Twist<double> transform_bi = Twist<double>(Eigen::Quaterniond(Rs_[opt_i]), Ps_[opt_i]);
 				imu_poses.push_back(transform_bi.cast<float>());
 				lidar_poses.push_back(transform_li.cast<float>());
-				
 			}
 			
 			DLOG(INFO) << "velocity: " << Vs_.last().norm();
@@ -2400,75 +2408,81 @@ namespace lio {
 			vis_aft_opt.UpdateMarkers(imu_poses, lidar_poses);
 			vis_aft_opt.UpdateVelocity(Vs_.last().norm());
 			vis_aft_opt.PublishMarkers();
+			// endregion
+		}
+		// endregion 查看优化前和优化后的变化，没什么用
+		
+		// region 发布T_{l}^{b} 发布特征点云，去除运动畸变，发布T_{world}^{laser_local}，发布T_{laser_local}^{laser_predict}
+		{
+			Twist<double> transform_lb = transform_lb_.cast<double>();
 			
-			{
-				// 发布lidar到imu的变换
-				geometry_msgs::PoseStamped ex_lb_msg;
-				ex_lb_msg.header = Headers_.last();
-				ex_lb_msg.pose.position.x = transform_lb.pos.x();
-				ex_lb_msg.pose.position.y = transform_lb.pos.y();
-				ex_lb_msg.pose.position.z = transform_lb.pos.z();
-				ex_lb_msg.pose.orientation.w = transform_lb.rot.w();
-				ex_lb_msg.pose.orientation.x = transform_lb.rot.x();
-				ex_lb_msg.pose.orientation.y = transform_lb.rot.y();
-				ex_lb_msg.pose.orientation.z = transform_lb.rot.z();
-				pub_extrinsic_.publish(ex_lb_msg);
-				
-				int pivot_idx = estimator_config_.window_size - estimator_config_.opt_window_size;
-				
-				Eigen::Vector3d Ps_pivot = Ps_[pivot_idx];
-				Eigen::Matrix3d Rs_pivot = Rs_[pivot_idx];
-				
-				Quaterniond rot_pivot(Rs_pivot * transform_lb.rot.inverse());
-				Eigen::Vector3d pos_pivot = Ps_pivot - rot_pivot * transform_lb.pos;
-				// 发送p+1时刻的所有点云信息
-				PublishCloudMsg(pub_local_surf_points_,
-				                *surf_stack_[pivot_idx + 1],
-				                Headers_[pivot_idx + 1].stamp,
-				                "/laser_local");
-				
-				PublishCloudMsg(pub_local_corner_points_,
-				                *corner_stack_[pivot_idx + 1],
-				                Headers_[pivot_idx + 1].stamp,
-				                "/laser_local");
-				
-				PublishCloudMsg(pub_local_full_points_,
-				                *full_stack_[pivot_idx + 1],
-				                Headers_[pivot_idx + 1].stamp,
-				                "/laser_local");
-				
-				PublishCloudMsg(pub_map_surf_points_,
-				                *local_surf_points_filtered_ptr_,
-				                Headers_.last().stamp,
-				                "/laser_local");
+			// 发布lidar到imu的变换
+			geometry_msgs::PoseStamped ex_lb_msg;
+			ex_lb_msg.header = Headers_.last();
+			ex_lb_msg.pose.position.x = transform_lb.pos.x();
+			ex_lb_msg.pose.position.y = transform_lb.pos.y();
+			ex_lb_msg.pose.position.z = transform_lb.pos.z();
+			ex_lb_msg.pose.orientation.w = transform_lb.rot.w();
+			ex_lb_msg.pose.orientation.x = transform_lb.rot.x();
+			ex_lb_msg.pose.orientation.y = transform_lb.rot.y();
+			ex_lb_msg.pose.orientation.z = transform_lb.rot.z();
+			pub_extrinsic_.publish(ex_lb_msg);
+			
+			int pivot_idx = estimator_config_.window_size - estimator_config_.opt_window_size;
+			
+			Eigen::Vector3d Ps_pivot = Ps_[pivot_idx];
+			Eigen::Matrix3d Rs_pivot = Rs_[pivot_idx];
+			
+			Quaterniond rot_pivot(Rs_pivot * transform_lb.rot.inverse());
+			Eigen::Vector3d pos_pivot = Ps_pivot - rot_pivot * transform_lb.pos;
+			// 发送p+1时刻的所有点云信息
+			PublishCloudMsg(pub_local_surf_points_,
+			                *surf_stack_[pivot_idx + 1],
+			                Headers_[pivot_idx + 1].stamp,
+			                "/laser_local");
+			
+			PublishCloudMsg(pub_local_corner_points_,
+			                *corner_stack_[pivot_idx + 1],
+			                Headers_[pivot_idx + 1].stamp,
+			                "/laser_local");
+			
+			PublishCloudMsg(pub_local_full_points_,
+			                *full_stack_[pivot_idx + 1],
+			                Headers_[pivot_idx + 1].stamp,
+			                "/laser_local");
+			
+			PublishCloudMsg(pub_map_surf_points_,
+			                *local_surf_points_filtered_ptr_,
+			                Headers_.last().stamp,
+			                "/laser_local");
 
 #ifdef USE_CORNER
-				PublishCloudMsg(pub_map_corner_points_,
+			PublishCloudMsg(pub_map_corner_points_,
 											*local_corner_points_filtered_ptr_,
 											Headers_.last().stamp,
 											"/laser_local");
 #endif
-				
-				// WOrld到 local lidar的TF变换
-				laser_local_trans_.setOrigin(tf::Vector3{pos_pivot.x(), pos_pivot.y(), pos_pivot.z()});
-				laser_local_trans_.setRotation(tf::Quaternion{rot_pivot.x(), rot_pivot.y(), rot_pivot.z(), rot_pivot.w()});
-				laser_local_trans_.stamp_ = Headers_.last().stamp;
-				tf_broadcaster_est_.sendTransform(laser_local_trans_);
-				
-				Eigen::Vector3d Ps_last = Ps_.last();
-				Eigen::Matrix3d Rs_last = Rs_.last();
-				
-				Quaterniond rot_last(Rs_last * transform_lb.rot.inverse());
-				Eigen::Vector3d pos_last = Ps_last - rot_last * transform_lb.pos;
-				
-				Quaterniond rot_predict = (rot_pivot.inverse() * rot_last).normalized();
-				Eigen::Vector3d pos_predict = rot_pivot.inverse() * (Ps_last - Ps_pivot);
-				
-				PublishCloudMsg(pub_predict_surf_points_, *(surf_stack_.last()), Headers_.last().stamp, "/laser_predict");
-				PublishCloudMsg(pub_predict_full_points_, *(full_stack_.last()), Headers_.last().stamp, "/laser_predict");
-				
-				{
-					// NOTE: full stack into end of the scan
+			
+			// World到 local lidar的TF变换
+			laser_local_trans_.setOrigin(tf::Vector3{pos_pivot.x(), pos_pivot.y(), pos_pivot.z()});
+			laser_local_trans_.setRotation(tf::Quaternion{rot_pivot.x(), rot_pivot.y(), rot_pivot.z(), rot_pivot.w()});
+			laser_local_trans_.stamp_ = Headers_.last().stamp;
+			tf_broadcaster_est_.sendTransform(laser_local_trans_);
+			
+			Eigen::Vector3d Ps_last = Ps_.last();
+			Eigen::Matrix3d Rs_last = Rs_.last();
+			
+			Quaterniond rot_last(Rs_last * transform_lb.rot.inverse());
+			Eigen::Vector3d pos_last = Ps_last - rot_last * transform_lb.pos;
+			
+			Quaterniond rot_predict = (rot_pivot.inverse() * rot_last).normalized();
+			Eigen::Vector3d pos_predict = rot_pivot.inverse() * (Ps_last - Ps_pivot);
+			
+			PublishCloudMsg(pub_predict_surf_points_, *(surf_stack_.last()), Headers_.last().stamp, "/laser_predict");
+			PublishCloudMsg(pub_predict_full_points_, *(full_stack_.last()), Headers_.last().stamp, "/laser_predict");
+			// region 去除运动畸变
+			{
+				// NOTE: full stack into end of the scan
 /*        PointCloudPtr tmp_points_ptr = boost::make_shared<PointCloud>(PointCloud());
         *tmp_points_ptr = *(full_stack_.last());
         TransformToEnd(tmp_points_ptr, transform_es_, 10);
@@ -2476,26 +2490,28 @@ namespace lio {
                         *tmp_points_ptr,
                         Headers_.last().stamp,
                         "/laser_predict");*/
-					// IMPORTANT 这里是利用IMU预积分的效果消除运动畸变
-					// 第一次进行到这里的时候，transform_es_是单位值：transform_es_0 0 0 1（四元数） 0 0 0（位置）
-					// 这个话题只有RVIZ显示使用
-					ROS_DEBUG_STREAM("transform_es_" << transform_es_);
-					TransformToEnd(full_stack_.last(), transform_es_, 10, true);
-					PublishCloudMsg(pub_predict_corrected_full_points_,
-					                *(full_stack_.last()),
-					                Headers_.last().stamp,
-					                "/laser_predict");
-				}
-#ifdef USE_CORNER
-				PublishCloudMsg(pub_predict_corner_points_, *(corner_stack_.last()), Headers_.last().stamp, "/laser_predict");
-#endif
-				laser_predict_trans_.setOrigin(tf::Vector3{pos_predict.x(), pos_predict.y(), pos_predict.z()});
-				laser_predict_trans_.setRotation(tf::Quaternion{rot_predict.x(), rot_predict.y(), rot_predict.z(),
-				                                                rot_predict.w()});
-				laser_predict_trans_.stamp_ = Headers_.last().stamp;
-				tf_broadcaster_est_.sendTransform(laser_predict_trans_);
+				// IMPORTANT 这里是利用IMU预积分的效果消除运动畸变
+				// 第一次进行到这里的时候，transform_es_是单位值：transform_es_0 0 0 1（四元数） 0 0 0（位置）
+				// 这个话题只有RVIZ显示使用
+				ROS_DEBUG_STREAM("transform_es_" << transform_es_);
+				TransformToEnd(full_stack_.last(), transform_es_, 10, true);
+				PublishCloudMsg(pub_predict_corrected_full_points_,
+				                *(full_stack_.last()),
+				                Headers_.last().stamp,
+				                "/laser_predict");
 			}
+			//endregion
+#ifdef USE_CORNER
+			PublishCloudMsg(pub_predict_corner_points_, *(corner_stack_.last()), Headers_.last().stamp, "/laser_predict");
+#endif
+			laser_predict_trans_.setOrigin(tf::Vector3{pos_predict.x(), pos_predict.y(), pos_predict.z()});
+			laser_predict_trans_.setRotation(tf::Quaternion{rot_predict.x(), rot_predict.y(), rot_predict.z(),
+			                                                rot_predict.w()});
+			laser_predict_trans_.stamp_ = Headers_.last().stamp;
+			tf_broadcaster_est_.sendTransform(laser_predict_trans_);
 		}
+		//endregion
+		
 		ROS_DEBUG_STREAM("tic_toc_opt: " << tic_toc_opt.Toc() << " ms");
 	}
 	

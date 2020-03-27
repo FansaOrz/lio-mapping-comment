@@ -38,7 +38,7 @@ extrinsic_translation: !!opencv-matrix
 # optimization options
 run_optimization: 1
 
-update_laser_imu: 1
+update_laser_imu: 0
 gravity_fix: 1
 
 plane_projection_factor: 0

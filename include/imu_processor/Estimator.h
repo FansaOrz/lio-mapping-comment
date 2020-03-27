@@ -194,7 +194,7 @@ class Estimator : public MeasurementManager, public PointMapping {
   //  map<double, LaserFrame> all_laser_frames;
 
   CircularBuffer<PairTimeLaserTransform> all_laser_transforms_{estimator_config_.window_size + 1};
-
+	// +1 是因为滑窗是从o到i，除此之外还要多计算一个最新的j，所以要 +1
   CircularBuffer<Vector3d> Ps_{estimator_config_.window_size + 1};
   CircularBuffer<Matrix3d> Rs_{estimator_config_.window_size + 1};
   CircularBuffer<Vector3d> Vs_{estimator_config_.window_size + 1};

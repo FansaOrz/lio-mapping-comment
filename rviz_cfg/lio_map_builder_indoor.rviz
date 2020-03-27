@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Grid1
         - /registered1
+        - /surrounding1
         - /Odometry1/Shape1
         - /PointCloud21
       Splitter Ratio: 0.5
@@ -130,8 +131,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 3.34513092
-        Min Value: -1.05087376
+        Max Value: 4.28588772
+        Min Value: -1.36045265
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -246,16 +247,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 22.0865078
+      Distance: 7.78026104
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -4.80893421
-        Y: -5.50803137
-        Z: -0.00305062113
+        X: 0.340593219
+        Y: -0.0736206695
+        Z: 1.40472353
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
@@ -264,7 +265,7 @@ Visualization Manager:
       Pitch: 1.56979632
       Target Frame: camera_init
       Value: Orbit (rviz)
-      Yaw: 2.79157519
+      Yaw: 2.89157772
     Saved: ~
 Window Geometry:
   Displays:

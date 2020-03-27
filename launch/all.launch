@@ -1,4 +1,5 @@
 <launch>  
-<include file="$(find lio)/launch/test_indoor.launch"/>
-<include file="$(find lio)/launch/map_4D_indoor.launch"/>
+    <include file="$(find lio)/launch/test_indoor.launch"/>
+    <include file="$(find lio)/launch/map_4D_indoor.launch"/>
+    <node pkg="tf2_ros" type="static_transform_publisher" name="map_apriltag_tf_broadcaster" args="0 0 0 0 0 0 map velodyne" />
 </launch>
